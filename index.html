@@ -2,129 +2,666 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>Turbine Digital Twin</title>
+
 <style>
-* { box-sizing: border-box; margin: 0; padding: 0; }
-body { background: #0a0d12; color: #cdd8e8; font-family: 'Courier New', monospace; overflow: hidden; }
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
 
-#c { position: fixed; inset: 0; display: block; }
+body {
+  background: #0a0d12;
+  color: #cdd8e8;
+  font-family: "Courier New", monospace;
+  overflow: hidden;
+}
 
-/* label layer */
-#ll { position: fixed; inset: 0; z-index: 10; pointer-events: none; overflow: hidden; }
-.tag { position: absolute; transform: translate(-50%,-100%); display: none; pointer-events: none; }
+#c {
+  position: fixed;
+  inset: 0;
+  display: block;
+}
+
+/* ============================================================
+   LABEL LAYER
+   ============================================================ */
+
+#ll {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.tag {
+  position: absolute;
+  transform: translate(-50%, -100%);
+  display: none;
+  pointer-events: none;
+}
+
 .tag-card {
-  background: rgba(10,13,18,0.92); border: 1px solid #00c8ff;
-  border-radius: 5px; padding: 6px 10px; min-width: 120px;
-  font-size: 10px; line-height: 1.8;
+  background: rgba(10,13,18,0.92);
+  border: 1px solid #00c8ff;
+  border-radius: 5px;
+  padding: 6px 10px;
+  min-width: 120px;
+  font-size: 10px;
+  line-height: 1.8;
 }
-.tag.warn  .tag-card { border-color: #ffb300; }
-.tag.alert .tag-card { border-color: #ff3d3d; }
-.tn { font-weight: bold; color: #00c8ff; font-size: 11px; border-bottom: 1px solid rgba(255,255,255,0.1); margin-bottom: 4px; padding-bottom: 3px; }
-.tag.warn  .tn { color: #ffb300; }
-.tag.alert .tn { color: #ff3d3d; }
-.tr { display: flex; justify-content: space-between; gap: 12px; }
-.tl { color: #4a6080; }
-.tv { font-weight: bold; }
-.tv.ok    { color: #00e676; }
-.tv.warn  { color: #ffb300; }
-.tv.alert { color: #ff3d3d; }
-.tag-line { width: 1px; height: 22px; background: linear-gradient(to bottom, #00c8ff, transparent); margin: 0 auto; }
-.tag-dot  { width: 6px; height: 6px; border-radius: 50%; background: #00c8ff; margin: 0 auto; }
-.tag.warn  .tag-dot { background: #ffb300; }
-.tag.alert .tag-dot { background: #ff3d3d; }
 
-/* top bar */
+.tag.warn .tag-card {
+  border-color: #ffb300;
+}
+
+.tag.alert .tag-card {
+  border-color: #ff3d3d;
+}
+
+.tn {
+  font-weight: bold;
+  color: #00c8ff;
+  font-size: 11px;
+  border-bottom: 1px solid rgba(255,255,255,0.1);
+  margin-bottom: 4px;
+  padding-bottom: 3px;
+}
+
+.tag.warn .tn {
+  color: #ffb300;
+}
+
+.tag.alert .tn {
+  color: #ff3d3d;
+}
+
+.tr {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.tl {
+  color: #4a6080;
+}
+
+.tv {
+  font-weight: bold;
+}
+
+.tv.ok {
+  color: #00e676;
+}
+
+.tv.warn {
+  color: #ffb300;
+}
+
+.tv.alert {
+  color: #ff3d3d;
+}
+
+.tag-line {
+  width: 1px;
+  height: 22px;
+  background: linear-gradient(to bottom, #00c8ff, transparent);
+  margin: 0 auto;
+}
+
+.tag-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #00c8ff;
+  margin: 0 auto;
+}
+
+.tag.warn .tag-dot {
+  background: #ffb300;
+}
+
+.tag.alert .tag-dot {
+  background: #ff3d3d;
+}
+
+
+/* ============================================================
+   TOP BAR
+   ============================================================ */
+
 #bar {
-  position: fixed; top: 0; left: 0; right: 0; height: 46px; z-index: 100;
-  background: #0d1117; border-bottom: 1px solid #1e2d45;
-  display: flex; align-items: center; padding: 0 14px; gap: 12px;
-}
-.logo { color: #00c8ff; font-weight: bold; font-size: 13px; margin-right: 8px; white-space: nowrap; }
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 46px;
+  z-index: 100;
 
-/* THE LOAD BUTTON — plain visible file input, no tricks */
-#fileWrap {
-  background: #00c8ff; border-radius: 4px; overflow: hidden;
-  display: flex; align-items: center;
-}
-#glbFile {
-  padding: 6px 12px; background: transparent; color: #000;
-  font-family: 'Courier New', monospace; font-size: 11px; font-weight: bold;
-  cursor: pointer; border: none; outline: none; width: 180px;
+  background: #0d1117;
+  border-bottom: 1px solid #1e2d45;
+
+  display: flex;
+  align-items: center;
+
+  padding: 0 14px;
+  gap: 12px;
 }
 
-.pill { background: #111622; border: 1px solid #1e2d45; border-radius: 20px; padding: 3px 10px; font-size: 9px; color: #4a6080; white-space: nowrap; }
-.pill b { color: #cdd8e8; }
-.pill b.ok { color: #00e676; } .pill b.warn { color: #ffb300; } .pill b.alert { color: #ff3d3d; }
+.logo {
+  color: #00c8ff;
+  font-weight: bold;
+  font-size: 13px;
+  margin-right: 8px;
+  white-space: nowrap;
+}
+
+
+/* ============================================================
+   STATUS PILLS
+   ============================================================ */
+
+.pill {
+  background: #111622;
+  border: 1px solid #1e2d45;
+  border-radius: 20px;
+  padding: 3px 10px;
+  font-size: 9px;
+  color: #4a6080;
+  white-space: nowrap;
+}
+
+.pill b {
+  color: #cdd8e8;
+}
+
+.pill b.ok {
+  color: #00e676;
+}
+
+.pill b.warn {
+  color: #ffb300;
+}
+
+.pill b.alert {
+  color: #ff3d3d;
+}
+
+
+/* ============================================================
+   LOADING SCREEN
+   ============================================================ */
 
 #hint {
-  position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%);
-  z-index: 20; text-align: center; pointer-events: none;
-}
-#hint .hb {
-  background: rgba(17,22,34,0.9); border: 1px dashed #1e2d45;
-  border-radius: 8px; padding: 24px 36px; display: inline-block;
-}
-#hint h2 { color: #00c8ff; font-size: 14px; margin-bottom: 10px; }
-#hint p  { color: #4a6080; font-size: 10px; line-height: 2; }
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
 
-#ctrls { position: fixed; bottom: 16px; right: 16px; z-index: 100; display: flex; flex-direction: column; gap: 6px; }
-.cb { width: 34px; height: 34px; background: rgba(13,17,23,0.95); border: 1px solid #1e2d45; border-radius: 5px; color: #cdd8e8; font-size: 14px; cursor: pointer; }
-.cb:hover { border-color: #00c8ff; }
-.cb.active { border-color: #00c8ff; background: rgba(0,200,255,0.15); color: #00c8ff; }
-body.editmode #ll { pointer-events: auto; }
-body.editmode .tag { pointer-events: auto; cursor: grab; display: block !important; }
-body.editmode .tag:active { cursor: grabbing; }
-body.editmode .tag-card { border-style: dashed; }
-#editBanner {
-  display: none; position: fixed; top: 46px; left: 0; right: 0; z-index: 90;
-  background: rgba(0,200,255,0.1); border-bottom: 1px solid rgba(0,200,255,0.4);
-  padding: 4px 14px; font-size: 10px; color: #00c8ff; text-align: center; letter-spacing: 0.1em;
+  z-index: 20;
+  text-align: center;
+  pointer-events: none;
 }
-body.editmode #editBanner { display: block; }
+
+#hint .hb {
+  background: rgba(17,22,34,0.9);
+  border: 1px dashed #1e2d45;
+  border-radius: 8px;
+  padding: 24px 36px;
+  display: inline-block;
+}
+
+#hint h2 {
+  color: #00c8ff;
+  font-size: 14px;
+  margin-bottom: 10px;
+}
+
+#hint p {
+  color: #4a6080;
+  font-size: 10px;
+  line-height: 2;
+}
+
+
+/* ============================================================
+   CONTROL BUTTONS
+   ============================================================ */
+
+#ctrls {
+  position: fixed;
+  bottom: 16px;
+  right: 16px;
+
+  z-index: 100;
+
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.cb {
+  width: 34px;
+  height: 34px;
+
+  background: rgba(13,17,23,0.95);
+  border: 1px solid #1e2d45;
+  border-radius: 5px;
+
+  color: #cdd8e8;
+  font-size: 14px;
+
+  cursor: pointer;
+}
+
+.cb:hover {
+  border-color: #00c8ff;
+}
+
+.cb.active {
+  border-color: #00c8ff;
+  background: rgba(0,200,255,0.15);
+  color: #00c8ff;
+}
+
+
+/* ============================================================
+   EDIT MODE
+   ============================================================ */
+
+body.editmode #ll {
+  pointer-events: auto;
+}
+
+body.editmode .tag {
+  pointer-events: auto;
+  cursor: grab;
+  display: block !important;
+}
+
+body.editmode .tag:active {
+  cursor: grabbing;
+}
+
+body.editmode .tag-card {
+  border-style: dashed;
+}
+
+#editBanner {
+  display: none;
+
+  position: fixed;
+  top: 46px;
+  left: 0;
+  right: 0;
+
+  z-index: 90;
+
+  background: rgba(0,200,255,0.1);
+  border-bottom: 1px solid rgba(0,200,255,0.4);
+
+  padding: 4px 14px;
+
+  font-size: 10px;
+  color: #00c8ff;
+
+  text-align: center;
+  letter-spacing: 0.1em;
+}
+
+body.editmode #editBanner {
+  display: block;
+}
+
+
+/* ============================================================
+   AR UI
+   ============================================================ */
+
+#arTap {
+  display: none;
+
+  position: fixed;
+  bottom: 100px;
+  left: 50%;
+
+  transform: translateX(-50%);
+
+  z-index: 200;
+
+  background: rgba(0,200,255,0.18);
+
+  border: 1px solid #00c8ff;
+
+  color: #00c8ff;
+
+  border-radius: 24px;
+
+  padding: 12px 28px;
+
+  font-size: 13px;
+  font-family: "Courier New", monospace;
+  font-weight: bold;
+
+  cursor: pointer;
+
+  pointer-events: auto;
+
+  white-space: nowrap;
+
+  box-shadow:
+    0 0 20px rgba(0,200,255,0.12);
+}
+
+#arTap:hover {
+  background: rgba(0,200,255,0.28);
+}
+
+#arTap:active {
+  transform: translateX(-50%) scale(0.97);
+}
+
+
+#arExit {
+  display: none;
+
+  position: fixed;
+
+  top: 10px;
+  right: 10px;
+
+  z-index: 200;
+
+  background: rgba(255,61,61,0.2);
+
+  border: 1px solid #ff3d3d;
+
+  color: #ff3d3d;
+
+  border-radius: 4px;
+
+  padding: 8px 16px;
+
+  font-size: 12px;
+
+  font-family: "Courier New", monospace;
+
+  cursor: pointer;
+}
+
+
+/* ============================================================
+   STATUS
+   ============================================================ */
+
+#status {
+  position: fixed;
+
+  left: 50%;
+  bottom: 16px;
+
+  transform: translateX(-50%);
+
+  z-index: 150;
+
+  background: rgba(13,17,23,.94);
+
+  border: 1px solid #1e2d45;
+
+  border-radius: 5px;
+
+  padding: 7px 12px;
+
+  font-size: 10px;
+
+  color: #4a6080;
+
+  display: none;
+
+  pointer-events: none;
+
+  max-width: 90vw;
+
+  text-align: center;
+}
+
+
+/* ============================================================
+   MOBILE
+   ============================================================ */
+
+@media (max-width: 700px) {
+
+  #bar {
+    padding: 0 8px;
+    gap: 5px;
+  }
+
+  .logo {
+    font-size: 10px;
+    margin-right: 2px;
+  }
+
+  .pill {
+    padding: 3px 6px;
+    font-size: 8px;
+  }
+
+  #ctrls {
+    bottom: 12px;
+    right: 12px;
+  }
+
+  .cb {
+    width: 38px;
+    height: 38px;
+  }
+
+}
 </style>
 </head>
+
+
 <body>
 
+<!-- ============================================================
+     TOP BAR
+     ============================================================ -->
+
 <div id="bar">
-  <div class="logo">⚙ TURBINE TWIN</div>
-  <button id="bAR" style="margin-left:auto;background:#00e676;color:#000;border:none;border-radius:4px;padding:6px 14px;font-family:Courier New,monospace;font-size:11px;font-weight:bold;cursor:pointer;display:none">📷 START AR</button>
-  <div class="pill">ALERTS <b id="hA">—</b></div>
-  <div class="pill">MAX VIB <b id="hV">—</b></div>
-  <div class="pill">THRUST <b id="hT">—</b></div>
-  <div class="pill">REFRESH <b id="hR">10s</b></div>
+
+  <div class="logo">
+    ⚙ TURBINE TWIN
+  </div>
+
+
+  <button
+    id="bAR"
+    style="
+      margin-left:auto;
+      background:#00e676;
+      color:#000;
+      border:none;
+      border-radius:4px;
+      padding:6px 14px;
+      font-family:Courier New,monospace;
+      font-size:11px;
+      font-weight:bold;
+      cursor:pointer;
+      display:none;
+    "
+  >
+    📷 START AR
+  </button>
+
+
+  <div class="pill">
+    ALERTS
+    <b id="hA">—</b>
+  </div>
+
+
+  <div class="pill">
+    MAX VIB
+    <b id="hV">—</b>
+  </div>
+
+
+  <div class="pill">
+    THRUST
+    <b id="hT">—</b>
+  </div>
+
+
+  <div class="pill">
+    REFRESH
+    <b id="hR">10s</b>
+  </div>
+
 </div>
+
+
+<!-- ============================================================
+     THREE.JS CANVAS
+     ============================================================ -->
 
 <canvas id="c"></canvas>
-<div id="arTap" style="display:none;position:fixed;bottom:100px;left:50%;transform:translateX(-50%);z-index:200;background:rgba(0,200,255,0.15);border:1px solid #00c8ff;color:#00c8ff;border-radius:24px;padding:12px 28px;font-size:13px;font-family:Courier New,monospace;pointer-events:none;white-space:nowrap">👆 TAP TO PLACE TURBINE</div>
-<button id="arExit" style="display:none;position:fixed;top:10px;right:10px;z-index:200;background:rgba(255,61,61,0.2);border:1px solid #ff3d3d;color:#ff3d3d;border-radius:4px;padding:8px 16px;font-size:12px;font-family:Courier New,monospace;cursor:pointer">✕ EXIT AR</button>
+
+
+<!-- ============================================================
+     AR PLACE BUTTON
+     ============================================================ -->
+
+<button id="arTap">
+  👆 TAP TO PLACE TURBINE
+</button>
+
+
+<!-- ============================================================
+     AR EXIT
+     ============================================================ -->
+
+<button id="arExit">
+  ✕ EXIT AR
+</button>
+
+
+<!-- ============================================================
+     LABEL LAYER
+     ============================================================ -->
+
 <div id="ll"></div>
 
-<div id="status" style="
-  position:fixed; left:50%; bottom:16px; transform:translateX(-50%);
-  z-index:150; background:rgba(13,17,23,.94); border:1px solid #1e2d45;
-  border-radius:5px; padding:7px 12px; font-size:10px; color:#4a6080;
-  display:none; pointer-events:none; max-width:90vw; text-align:center;">
+
+<!-- ============================================================
+     STATUS
+     ============================================================ -->
+
+<div id="status">
 </div>
 
+
+<!-- ============================================================
+     LOADING SCREEN
+     ============================================================ -->
 
 <div id="hint">
+
   <div class="hb">
-    <h2>Loading Turbine Digital Twin…</h2>
-    <p>Connecting to the turbine model and live Google Sheet data<br>
-    <span style="color:#1e2d45">———</span><br>
-    Please wait</p>
+
+    <h2>
+      Loading Turbine Digital Twin…
+    </h2>
+
+    <p>
+      Connecting to the turbine model and live Google Sheet data
+      <br>
+
+      <span style="color:#1e2d45">
+        ———
+      </span>
+
+      <br>
+
+      Please wait
+    </p>
+
   </div>
+
 </div>
 
-<div id="editBanner">✥ EDIT MODE — drag tags to reposition · positions auto-saved · click Edit again to exit</div>
+
+<!-- ============================================================
+     EDIT MODE BANNER
+     ============================================================ -->
+
+<div id="editBanner">
+  ✥ EDIT MODE — drag tags to reposition · positions auto-saved · click Edit again to exit
+</div>
+
+
+<!-- ============================================================
+     CONTROL PANEL
+     ============================================================ -->
 
 <div id="ctrls">
-  <button class="cb" id="bReset" title="Reset camera">⌖</button>
-  <button class="cb" id="bLabel" title="Toggle tags">🏷</button>
-  <button class="cb" id="bWire"  title="Wireframe">⬡</button>
-  <button class="cb" id="bEdit"  title="Edit tag positions">✥</button>
-  <button class="cb" id="bSave"  title="Export positions">💾</button>
+
+  <button
+    class="cb"
+    id="bReset"
+    title="Reset camera"
+  >
+    ⌖
+  </button>
+
+
+  <button
+    class="cb"
+    id="bLabel"
+    title="Toggle tags"
+  >
+    🏷
+  </button>
+
+
+  <button
+    class="cb"
+    id="bWire"
+    title="Wireframe"
+  >
+    ⬡
+  </button>
+
+
+  <button
+    class="cb"
+    id="bEdit"
+    title="Edit tag positions"
+  >
+    ✥
+  </button>
+
+
+  <button
+    class="cb"
+    id="bSave"
+    title="Export positions"
+  >
+    💾
+  </button>
+
 </div>
+
+
+<!-- ============================================================
+     THREE.JS IMPORT MAP
+     
+     Required because GLTFLoader imports the bare module name
+     "three".
+     ============================================================ -->
 
 <script type="importmap">
 {
@@ -134,7 +671,16 @@ body.editmode #editBanner { display: block; }
 }
 </script>
 
-<script type="module" src="./js/app.js"></script>
-<script type="module" src="./js/app.js"></script>
+
+<!-- ============================================================
+     APPLICATION
+     ============================================================ -->
+
+<script
+  type="module"
+  src="./js/app.js"
+></script>
+
+
 </body>
 </html>
