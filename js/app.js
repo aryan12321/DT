@@ -2217,31 +2217,6 @@ async function startAR() {
 
 }
 
-    .catch(
-      error => {
-
-        console.error(
-          "AR failed:",
-          error
-        );
-
-
-        alert(
-
-          "AR could not start.\n\n" +
-
-          (
-            error?.message ||
-            "The device/browser may not support WebXR AR."
-          )
-
-        );
-
-      }
-    );
-
-}
-
 
 /* ============================================================
    CLEANUP AR
