@@ -3007,9 +3007,8 @@ function updateFreezeBar() {
   }
 }
 
-document.getElementById(
-  "bFreeze"
-).onclick = e => {
+const bFreezeEl = document.getElementById("bFreeze");
+if (bFreezeEl) bFreezeEl.onclick = e => {
 
   frozen = !frozen;
 
