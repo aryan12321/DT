@@ -1938,251 +1938,263 @@ function checkAR() {
    START AR
    ============================================================ */
 
-function startAR() {
+async function startAR() {
 
   if (!model) {
-
-    alert(
-      "Turbine is still loading."
-    );
-
+    alert("Turbine is still loading.");
     return;
-
   }
-
 
   if (!navigator.xr) {
-
     alert(
-      "WebXR AR is not available in this browser/device."
+      "WebXR is not available in this browser. " +
+      "Open this page in Chrome on a compatible AR Android device."
+    );
+    return;
+  }
+
+  try {
+
+    console.log("AR: checking session support...");
+
+    const supported =
+      await navigator.xr.isSessionSupported("immersive-ar");
+
+    if (!supported) {
+      alert(
+        "Immersive AR is not supported on this device/browser."
+      );
+      return;
+    }
+
+    console.log("AR: requesting immersive session...");
+
+    /*
+      Keep the initial request deliberately simple.
+
+      Hit-test and DOM overlay are optional.
+      Some browsers become unreliable when too many
+      optional features are requested together.
+    */
+    const session =
+      await navigator.xr.requestSession(
+        "immersive-ar",
+        {
+          requiredFeatures: [],
+          optionalFeatures: [
+            "hit-test",
+            "dom-overlay"
+          ],
+          domOverlay: {
+            root: document.body
+          }
+        }
+      );
+
+    console.log("AR: session created.");
+
+    xrSession = session;
+    arMode = true;
+    modelPlaced = false;
+    hitTestSource = null;
+    lastHitPosition = null;
+
+    /*
+      IMPORTANT:
+      Configure Three.js BEFORE changing the scene into AR mode.
+    */
+    console.log("AR: connecting Three renderer...");
+
+    await renderer.xr.setSession(session);
+
+    console.log("AR: Three renderer connected.");
+
+    /*
+      Transparent scene so the real camera becomes visible.
+    */
+    scene.background = null;
+    scene.fog = null;
+
+    grid.visible = false;
+
+    model.visible = false;
+
+    reticle.visible = false;
+
+    /*
+      Hide normal desktop UI.
+    */
+    document.getElementById("bar").style.display = "none";
+    document.getElementById("ctrls").style.display = "none";
+
+    /*
+      Show AR controls.
+    */
+    document.getElementById("arExit").style.display = "block";
+    document.getElementById("arTap").style.display = "block";
+
+    console.log("AR: requesting viewer reference space...");
+
+    /*
+      Hit testing uses the viewer space.
+    */
+    try {
+
+      const viewerSpace =
+        await session.requestReferenceSpace("viewer");
+
+      hitTestSource =
+        await session.requestHitTestSource({
+          space: viewerSpace
+        });
+
+      console.log("AR: hit-test enabled.");
+
+    }
+
+    catch (hitError) {
+
+      console.warn(
+        "AR: hit-test unavailable:",
+        hitError
+      );
+
+      hitTestSource = null;
+
+    }
+
+    /*
+      Placement function.
+    */
+    const placeModel = () => {
+
+      if (modelPlaced)
+        return;
+
+      let position;
+
+      /*
+        Prefer detected real-world surface.
+      */
+      if (lastHitPosition) {
+
+        position =
+          lastHitPosition.clone();
+
+      }
+
+      /*
+        Fallback if hit-test isn't available.
+      */
+      else {
+
+        const direction =
+          new THREE.Vector3();
+
+        camera.getWorldDirection(direction);
+
+        position =
+          camera.position
+            .clone()
+            .addScaledVector(direction, 1.5);
+
+        position.y -= 1;
+
+      }
+
+      model.position.copy(position);
+
+      model.visible = true;
+
+      reticle.visible = false;
+
+      modelPlaced = true;
+
+      document.getElementById(
+        "arTap"
+      ).style.display = "none";
+
+      console.log(
+        "AR: turbine placed.",
+        position
+      );
+
+    };
+
+
+    /*
+      Physical AR tap.
+    */
+    session.addEventListener(
+      "select",
+      placeModel
     );
 
-    return;
+
+    /*
+      HTML button tap.
+    */
+    const arTap =
+      document.getElementById("arTap");
+
+    arTap.onclick =
+      placeModel;
+
+
+    /*
+      Exit AR when the browser/session ends.
+    */
+    session.addEventListener(
+      "end",
+      () => {
+
+        console.log("AR: session ended.");
+
+        cleanupAR(false);
+
+      }
+    );
+
+
+    /*
+      Change button state.
+    */
+    const button =
+      document.getElementById("bAR");
+
+    if (button) {
+      button.textContent = "⏹ EXIT AR";
+    }
+
+    console.log(
+      "AR: READY. Camera should now be visible."
+    );
 
   }
 
-
-  navigator.xr
-    .requestSession(
-      "immersive-ar",
-      {
-
-        requiredFeatures: [],
-
-        optionalFeatures: [
-          "hit-test",
-          "dom-overlay"
-        ],
-
-        domOverlay: {
-          root:
-            document.body
-        }
-
-      }
-    )
-
-
-    .then(
-      session => {
-
-        xrSession =
-          session;
-
-
-        arMode =
-          true;
-
-
-        modelPlaced =
-          false;
-
-
-        lastHitPosition =
-          null;
-
-
-        scene.background =
-          null;
-
-
-        scene.fog =
-          null;
-
-
-        grid.visible =
-          false;
-
-
-        model.visible =
-          false;
-
-
-        renderer.xr
-          .setSession(
-            session
-          );
-
-
-        session
-          .requestReferenceSpace(
-            "viewer"
-          )
-
-          .then(
-            viewerSpace =>
-              session
-                .requestHitTestSource(
-                  {
-                    space:
-                      viewerSpace
-                  }
-                )
-          )
-
-          .then(
-            source => {
-
-              hitTestSource =
-                source;
-
-            }
-          )
-
-          .catch(
-            () => {
-
-              hitTestSource =
-                null;
-
-            }
-          );
-
-
-        const placeModel =
-          () => {
-
-            if (modelPlaced)
-              return;
-
-
-            let position;
-
-
-            if (
-              lastHitPosition
-            ) {
-
-              position =
-                lastHitPosition.clone();
-
-            }
-
-
-            else {
-
-              const direction =
-                new THREE.Vector3();
-
-
-              camera.getWorldDirection(
-                direction
-              );
-
-
-              position =
-                camera.position
-                  .clone()
-                  .addScaledVector(
-                    direction,
-                    1.5
-                  );
-
-
-              position.y -=
-                1;
-
-            }
-
-
-            model.position.copy(
-              position
-            );
-
-
-            model.visible =
-              true;
-
-
-            reticle.visible =
-              false;
-
-
-            modelPlaced =
-              true;
-
-
-            document.getElementById(
-              "arTap"
-            ).style.display =
-              "none";
-
-          };
-         
-      document.getElementById("arTap").onclick = placeModel;
-
-        session.addEventListener(
-          "select",
-          placeModel
-        );
-
-
-        const button =
-          document.getElementById(
-            "bAR"
-          );
-
-
-        button.textContent =
-          "⏹ EXIT AR";
-
-
-        document.getElementById(
-          "arExit"
-        ).style.display =
-          "block";
-
-
-        document.getElementById(
-          "arTap"
-        ).style.display =
-          "block";
-
-
-        document.getElementById(
-          "bar"
-        ).style.display =
-          "none";
-
-
-        document.getElementById(
-          "ctrls"
-        ).style.display =
-          "none";
-
-
-        session.addEventListener(
-          "end",
-          () => {
-
-            cleanupAR(false);
-
-          }
-        );
-
-      }
-    )
-
+  catch (error) {
+
+    console.error(
+      "AR START ERROR:",
+      error
+    );
+
+    /*
+      Restore normal viewer.
+    */
+    cleanupAR(false);
+
+    alert(
+      "AR could not start.\n\n" +
+      (
+        error?.message ||
+        "The browser/device did not start the AR camera."
+      )
+    );
+
+  }
+
+}
 
     .catch(
       error => {
@@ -2352,10 +2364,7 @@ document.getElementById(
    RENDER LOOP
    ============================================================ */
 
-function renderLoop(
-  timestamp,
-  frame
-) {
+function renderLoop(timestamp, frame) {
 
   if (
     arMode &&
@@ -2364,46 +2373,44 @@ function renderLoop(
   ) {
 
     const referenceSpace =
-      renderer.xr
-        .getReferenceSpace();
+      renderer.xr.getReferenceSpace();
 
+    if (referenceSpace) {
 
-    const hits =
-      frame.getHitTestResults(
-        hitTestSource
-      );
-
-
-    if (hits.length) {
-
-      const pose =
-        hits[0].getPose(
-          referenceSpace
+      const hits =
+        frame.getHitTestResults(
+          hitTestSource
         );
 
+      if (hits.length) {
 
-      reticle
-        .matrixAutoUpdate =
-        false;
+        const pose =
+          hits[0].getPose(
+            referenceSpace
+          );
 
+        if (pose) {
 
-      reticle.matrix
-        .fromArray(
-          pose.transform.matrix
-        );
+          reticle.matrixAutoUpdate = false;
 
+          reticle.matrix.fromArray(
+            pose.transform.matrix
+          );
 
-      reticle.visible =
-        !modelPlaced;
+          reticle.visible =
+            !modelPlaced;
 
+          if (!modelPlaced) {
 
-      if (!modelPlaced) {
+            lastHitPosition =
+              new THREE.Vector3()
+                .setFromMatrixPosition(
+                  reticle.matrix
+                );
 
-        lastHitPosition =
-          new THREE.Vector3()
-            .setFromMatrixPosition(
-              reticle.matrix
-            );
+          }
+
+        }
 
       }
 
@@ -2419,9 +2426,7 @@ function renderLoop(
 
 
   if (labelsOn) {
-
     projectTagsWithEdit();
-
   }
 
 }
