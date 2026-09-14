@@ -654,7 +654,11 @@ function projectTags() {
       .applyMatrix4(
         model.matrixWorld
       )
-      .project(camera);
+      .project(
+        arMode
+          ? renderer.xr.getCamera(camera)
+          : camera
+      );
 
 
     if (worldPoint.z > 1) {
@@ -835,27 +839,20 @@ function parseCSV(text) {
    ============================================================ */
 
 function cleanKey(value) {
-
-  return String(
-    value ?? ""
-  )
-
-    .replace(
-      /^\uFEFF/,
-      ""
-    )
-
+  return String(value ?? "")
+    .replace(/^\uFEFF/, "")
     .trim()
-
-    .replace(
-      /^"(.*)"$/,
-      "$1"
-    )
-
+    .replace(/^"(.*)"$/, "$1")
     .trim();
-
 }
 
+function sensorKey(value) {
+  return cleanKey(value)
+    .toUpperCase()
+    .replace(/[‐‑‒–—−]/g, "-")
+    .replace(/\s+/g, " ")
+    .trim();
+}
 
 /* ============================================================
    PARSE NUMERIC VALUE
@@ -1100,6 +1097,14 @@ function setValue(
    UPDATE ALL TAGS
    ============================================================ */
 
+function getSensorValue(name) {
+  if (!name) return null;
+  if (Object.prototype.hasOwnProperty.call(data, name)) {
+    return data[name];
+  }
+  return data[sensorKey(name)] ?? null;
+}
+
 function updateTags() {
 
   let alerts = 0;
@@ -1230,9 +1235,9 @@ function updateTags() {
 
 
   const thrust =
-    data[
+    getSensorValue(
       "T THRUST BRG FRONT"
-    ] ?? null;
+    );
 
 
   const hA =
@@ -1842,26 +1847,49 @@ function colorMeshes() {
    ============================================================ */
 
 let arMode = false;
+
 let xrSession = null;
+
 let hitTestSource = null;
+
 let modelPlaced = false;
+
 let lastHitPosition = null;
-let arPlaceHandler = null;
+
 
 const reticle =
   new THREE.Mesh(
-    new THREE.RingGeometry(0.06, 0.09, 32),
+
+    new THREE.RingGeometry(
+      0.06,
+      0.09,
+      32
+    ),
+
     new THREE.MeshBasicMaterial({
-      color: 0x00c8ff,
-      side: THREE.DoubleSide,
-      transparent: true,
-      opacity: 0.9
+
+      color:
+        0x00c8ff,
+
+      side:
+        THREE.DoubleSide
+
     })
+
   );
 
-reticle.rotation.x = -Math.PI / 2;
-reticle.visible = false;
-scene.add(reticle);
+
+reticle.rotation.x =
+  -Math.PI / 2;
+
+
+reticle.visible =
+  false;
+
+
+scene.add(
+  reticle
+);
 
 
 /* ============================================================
@@ -1870,32 +1898,49 @@ scene.add(reticle);
 
 function checkAR() {
 
-  const button = document.getElementById("bAR");
+  const button =
+    document.getElementById(
+      "bAR"
+    );
 
-  if (!button || !navigator.xr)
+
+  if (
+    !navigator.xr ||
+    !button
+  ) {
+
     return;
 
-  navigator.xr.isSessionSupported("immersive-ar")
-    .then(supported => {
+  }
 
-      if (supported) {
-        button.style.display = "block";
+
+  navigator.xr
+    .isSessionSupported(
+      "immersive-ar"
+    )
+
+    .then(
+      supported => {
+
+        if (supported) {
+
+          button.style.display =
+            "block";
+
+        }
+
       }
+    )
 
-    })
-    .catch(error => {
-      console.warn("WebXR AR support check failed:", error);
-    });
+    .catch(
+      () => {}
+    );
+
 }
 
 
 /* ============================================================
    START AR
-
-   Important:
-   The XR session is started first and the camera is allowed to
-   come up immediately. Hit-test is optional and initialized
-   afterwards so it can never block AR startup.
    ============================================================ */
 
 async function startAR() {
@@ -1907,49 +1952,51 @@ async function startAR() {
 
   if (!navigator.xr) {
     alert(
-      "WebXR is not available in this browser.\n\n" +
-      "Use Chrome on a compatible Android AR device."
+      "WebXR is not available in this browser. " +
+      "Open this page in Chrome on a compatible AR Android device."
     );
     return;
   }
 
-  const button = document.getElementById("bAR");
-  const arTap = document.getElementById("arTap");
-  const arExit = document.getElementById("arExit");
-
   try {
 
-    console.log("AR 1: checking support...");
+    console.log("AR: checking session support...");
 
     const supported =
       await navigator.xr.isSessionSupported("immersive-ar");
 
     if (!supported) {
-      alert("Immersive AR is not supported on this device/browser.");
+      alert(
+        "Immersive AR is not supported on this device/browser."
+      );
       return;
     }
 
-    console.log("AR 2: requesting camera AR session...");
+    console.log("AR: requesting immersive session...");
 
     /*
-      Keep the session request minimal.
-      Hit-test and DOM overlay are optional capabilities.
-      The camera/session must not depend on either one.
+      Keep the initial request deliberately simple.
+
+      Hit-test and DOM overlay are optional.
+      Some browsers become unreliable when too many
+      optional features are requested together.
     */
     const session =
-      await navigator.xr.requestSession("immersive-ar", {
-        requiredFeatures: [],
-        optionalFeatures: [
-          "local-floor",
-          "hit-test",
-          "dom-overlay"
-        ],
-        domOverlay: {
-          root: document.body
+      await navigator.xr.requestSession(
+        "immersive-ar",
+        {
+          requiredFeatures: [],
+          optionalFeatures: [
+            "hit-test",
+            "dom-overlay"
+          ],
+          domOverlay: {
+            root: document.body
+          }
         }
-      });
+      );
 
-    console.log("AR 3: session created.");
+    console.log("AR: session created.");
 
     xrSession = session;
     arMode = true;
@@ -1958,56 +2005,45 @@ async function startAR() {
     lastHitPosition = null;
 
     /*
-      Connect the WebXR session to Three.js immediately.
-      This is the point at which the device camera should become
-      the XR background.
+      IMPORTANT:
+      Configure Three.js BEFORE changing the scene into AR mode.
     */
-    console.log("AR 4: attaching session to Three.js...");
+    console.log("AR: connecting Three renderer...");
 
     await renderer.xr.setSession(session);
 
-    console.log("AR 5: Three.js XR session active.");
+    console.log("AR: Three renderer connected.");
 
     /*
-      AR scene setup.
+      Transparent scene so the real camera becomes visible.
     */
     scene.background = null;
     scene.fog = null;
 
     grid.visible = false;
 
-    if (model) {
-      model.visible = false;
-    }
+    model.visible = false;
 
     reticle.visible = false;
 
     /*
-      Hide desktop UI and show AR UI.
+      Hide normal desktop UI.
     */
     document.getElementById("bar").style.display = "none";
     document.getElementById("ctrls").style.display = "none";
 
-    if (arExit) {
-      arExit.style.display = "block";
-    }
+    /*
+      Show AR controls.
+    */
+    document.getElementById("arExit").style.display = "block";
+    document.getElementById("arTap").style.display = "block";
 
-    if (arTap) {
-      arTap.style.display = "block";
-      arTap.disabled = false;
-    }
-
-    if (button) {
-      button.textContent = "⏹ EXIT AR";
-    }
+    console.log("AR: requesting viewer reference space...");
 
     /*
-      Try to enable hit testing, but NEVER allow it to block the
-      camera/session. If unsupported, placement uses a fallback.
+      Hit testing uses the viewer space.
     */
     try {
-
-      console.log("AR 6: requesting viewer space...");
 
       const viewerSpace =
         await session.requestReferenceSpace("viewer");
@@ -2017,42 +2053,46 @@ async function startAR() {
           space: viewerSpace
         });
 
-      console.log("AR 7: hit-test enabled.");
+      console.log("AR: hit-test enabled.");
 
     }
+
     catch (hitError) {
 
       console.warn(
-        "AR hit-test unavailable. Continuing without it:",
+        "AR: hit-test unavailable:",
         hitError
       );
 
       hitTestSource = null;
+
     }
 
     /*
-      Place turbine.
+      Placement function.
     */
     const placeModel = () => {
 
-      if (!arMode || modelPlaced || !model)
+      if (modelPlaced)
         return;
 
       let position;
 
+      /*
+        Prefer detected real-world surface.
+      */
       if (lastHitPosition) {
 
         position =
           lastHitPosition.clone();
 
       }
+
+      /*
+        Fallback if hit-test isn't available.
+      */
       else {
 
-        /*
-          Fallback placement directly in front of the XR camera.
-          This means the button still works even when hit-test is
-          unavailable on the browser/device.
-        */
         const direction =
           new THREE.Vector3();
 
@@ -2064,53 +2104,89 @@ async function startAR() {
             .addScaledVector(direction, 1.5);
 
         position.y -= 1;
+
       }
 
       model.position.copy(position);
+
       model.visible = true;
 
       reticle.visible = false;
+
       modelPlaced = true;
-      lastHitPosition = null;
 
-      if (arTap) {
-        arTap.style.display = "none";
-      }
+      document.getElementById(
+        "arTap"
+      ).style.display = "none";
 
-      console.log("AR: turbine placed at", position);
+      console.log(
+        "AR: turbine placed.",
+        position
+      );
+
     };
 
-    /*
-      Remove any previous physical-tap handler before registering
-      a new one.
-    */
-    arPlaceHandler = placeModel;
-    session.addEventListener("select", arPlaceHandler);
 
     /*
-      Explicit HTML button placement.
+      Physical AR tap.
     */
-    if (arTap) {
-      arTap.onclick = placeModel;
+    session.addEventListener(
+      "select",
+      placeModel
+    );
+
+
+    /*
+      HTML button tap.
+    */
+    const arTap =
+      document.getElementById("arTap");
+
+    arTap.onclick =
+      placeModel;
+
+
+    /*
+      Exit AR when the browser/session ends.
+    */
+    session.addEventListener(
+      "end",
+      () => {
+
+        console.log("AR: session ended.");
+
+        cleanupAR(false);
+
+      }
+    );
+
+
+    /*
+      Change button state.
+    */
+    const button =
+      document.getElementById("bAR");
+
+    if (button) {
+      button.textContent = "⏹ EXIT AR";
     }
 
-    /*
-      Clean exit if the browser ends the XR session.
-    */
-    session.addEventListener("end", () => {
-
-      console.log("AR: session ended.");
-      cleanupAR(false);
-
-    });
-
-    console.log("AR 8: READY. Camera should be visible now.");
+    console.log(
+      "AR: READY. Camera should now be visible."
+    );
 
   }
+
   catch (error) {
 
-    console.error("AR START ERROR:", error);
+    console.error(
+      "AR START ERROR:",
+      error
+    );
 
+    /*
+      Restore normal viewer.
+    */
     cleanupAR(false);
 
     alert(
@@ -2120,7 +2196,34 @@ async function startAR() {
         "The browser/device did not start the AR camera."
       )
     );
+
   }
+
+}
+
+    .catch(
+      error => {
+
+        console.error(
+          "AR failed:",
+          error
+        );
+
+
+        alert(
+
+          "AR could not start.\n\n" +
+
+          (
+            error?.message ||
+            "The device/browser may not support WebXR AR."
+          )
+
+        );
+
+      }
+    );
+
 }
 
 
@@ -2128,68 +2231,107 @@ async function startAR() {
    CLEANUP AR
    ============================================================ */
 
-function cleanupAR(endSession = true) {
+function cleanupAR(
+  endSession = true
+) {
 
-  const session = xrSession;
+  arMode =
+    false;
 
-  arMode = false;
-  modelPlaced = false;
-  hitTestSource = null;
-  lastHitPosition = null;
-  arPlaceHandler = null;
 
-  if (session && endSession) {
+  modelPlaced =
+    false;
+
+
+  hitTestSource =
+    null;
+
+
+  if (
+    endSession &&
+    xrSession
+  ) {
 
     try {
-      session.end();
+
+      xrSession.end();
+
     }
+
     catch (_) {}
+
   }
 
-  xrSession = null;
+
+  xrSession =
+    null;
+
 
   scene.background =
-    new THREE.Color(0x0a0d12);
+    new THREE.Color(
+      0x0a0d12
+    );
+
 
   scene.fog =
-    new THREE.FogExp2(0x0a0d12, 0.03);
+    new THREE.FogExp2(
+      0x0a0d12,
+      0.03
+    );
 
-  grid.visible = true;
+
+  grid.visible =
+    true;
+
 
   if (model) {
 
-    model.visible = true;
-    model.position.set(0, 0, 0);
+    model.visible =
+      true;
+
+
+    model.position.set(
+      0,
+      0,
+      0
+    );
+
   }
 
-  reticle.visible = false;
 
-  const button = document.getElementById("bAR");
-  const arExit = document.getElementById("arExit");
-  const arTap = document.getElementById("arTap");
-  const bar = document.getElementById("bar");
-  const ctrls = document.getElementById("ctrls");
+  reticle.visible =
+    false;
 
-  if (button) {
-    button.textContent = "📷 START AR";
-  }
 
-  if (arExit) {
-    arExit.style.display = "none";
-  }
+  document.getElementById(
+    "bAR"
+  ).textContent =
+    "📷 START AR";
 
-  if (arTap) {
-    arTap.style.display = "none";
-    arTap.onclick = null;
-  }
 
-  if (bar) {
-    bar.style.display = "flex";
-  }
+  document.getElementById(
+    "arExit"
+  ).style.display =
+    "none";
 
-  if (ctrls) {
-    ctrls.style.display = "flex";
-  }
+
+  document.getElementById(
+    "arTap"
+  ).style.display =
+    "none";
+
+
+  document.getElementById(
+    "bar"
+  ).style.display =
+    "flex";
+
+
+  document.getElementById(
+    "ctrls"
+  ).style.display =
+    "flex";
+
 }
 
 
