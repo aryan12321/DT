@@ -98,6 +98,10 @@ let model = null;
 let labelsOn = true;
 let wire = false;
 
+// FREEZE: when true, tags display frozenData snapshot instead of live data
+let frozen = false;
+let frozenData = {};
+
 const wpos = {};
 const tels = {};
 
@@ -968,10 +972,11 @@ async function fetchData() {
     data =
       next;
 
-
-    updateTags();
-
-    colorMeshes();
+    // Only push to display if not frozen
+    if (!frozen) {
+      updateTags();
+      colorMeshes();
+    }
 
 
     document.getElementById(
@@ -981,23 +986,26 @@ async function fetchData() {
         REFRESH_MS / 1000
       ) + "s";
 
+    updateFreezeBar();
 
-    status(
+    if (!frozen) {
+      status(
 
-      "LIVE • Google Sheet updated " +
+        "LIVE • Google Sheet updated " +
 
-      new Date()
-        .toLocaleTimeString(),
+        new Date()
+          .toLocaleTimeString(),
 
-      true
+        true
 
-    );
+      );
 
 
-    setTimeout(
-      () => status("", false),
-      1800
-    );
+      setTimeout(
+        () => status("", false),
+        1800
+      );
+    }
 
 
   }
@@ -1098,14 +1106,31 @@ function setValue(
    ============================================================ */
 
 function getSensorValue(name) {
+  return getSensorValueFrom(data, name);
+}
+
+// Generic: look up a sensor name in any data object (live or frozen snapshot)
+function getSensorValueFrom(src, name) {
   if (!name) return null;
-  if (Object.prototype.hasOwnProperty.call(data, name)) {
-    return data[name];
+  if (Object.prototype.hasOwnProperty.call(src, name)) {
+    return src[name];
   }
-  return data[sensorKey(name)] ?? null;
+  const k = sensorKey(name);
+  if (Object.prototype.hasOwnProperty.call(src, k)) {
+    return src[k];
+  }
+  // Fallback: case-insensitive search
+  const lower = k.toLowerCase();
+  for (const key of Object.keys(src)) {
+    if (sensorKey(key).toLowerCase() === lower) return src[key];
+  }
+  return null;
 }
 
 function updateTags() {
+
+  // Use frozen snapshot if freeze mode is active
+  const src = frozen ? frozenData : data;
 
   let alerts = 0;
 
@@ -1114,21 +1139,14 @@ function updateTags() {
     b => {
 
       const vX =
-        data[b.vX] ??
-        null;
-
+        getSensorValueFrom(src, b.vX);
 
       const vY =
-        data[b.vY] ??
-        null;
-
+        getSensorValueFrom(src, b.vY);
 
       const temp =
         b.t
-          ? (
-              data[b.t] ??
-              null
-            )
+          ? getSensorValueFrom(src, b.t)
           : null;
 
 
@@ -1211,8 +1229,8 @@ function updateTags() {
 
       .flatMap(
         b => [
-          data[b.vX],
-          data[b.vY]
+          getSensorValueFrom(src, b.vX),
+          getSensorValueFrom(src, b.vY)
         ]
       )
 
@@ -1235,9 +1253,7 @@ function updateTags() {
 
 
   const thrust =
-    getSensorValue(
-      "T THRUST BRG FRONT"
-    );
+    getSensorValueFrom(src, "T THRUST BRG FRONT");
 
 
   const hA =
@@ -2970,6 +2986,53 @@ function projectTagsWithEdit() {
   originalProjectTags();
 
 }
+
+
+/* ============================================================
+   FREEZE
+   ============================================================ */
+
+function updateFreezeBar() {
+  const pill = document.getElementById("hFreeze");
+  const btn  = document.getElementById("bFreeze");
+  if (!pill) return;
+
+  if (frozen) {
+    pill.innerHTML = "❄ FROZEN <b style='color:#00c8ff'>" +
+      new Date(frozenData._ts || Date.now()).toLocaleTimeString() + "</b>";
+    if (btn) btn.classList.add("active");
+  } else {
+    pill.innerHTML = "🔴 <b class='ok'>LIVE</b>";
+    if (btn) btn.classList.remove("active");
+  }
+}
+
+document.getElementById(
+  "bFreeze"
+).onclick = e => {
+
+  frozen = !frozen;
+
+  if (frozen) {
+    // Snapshot current live data
+    frozenData = Object.assign({}, data);
+    frozenData._ts = Date.now();
+    // Render frozen snapshot immediately
+    updateTags();
+    colorMeshes();
+    status("❄ Data frozen at " + new Date().toLocaleTimeString(), true);
+    setTimeout(() => status("", false), 2500);
+  } else {
+    // Unfreeze: push latest live data
+    updateTags();
+    colorMeshes();
+    status("▶ Resumed live data", true);
+    setTimeout(() => status("", false), 1800);
+  }
+
+  updateFreezeBar();
+
+};
 
 
 /* ============================================================
