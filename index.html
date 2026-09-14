@@ -3853,7 +3853,6 @@ window.addEventListener('resize', function(){
 // Animate
 var _v = new THREE.Vector3();
 var arMode=false, xrSession=null, hitTestSource=null, modelPlaced=false;
-var lastHitPosition = null; // track last valid hit even when reticle hidden
 var reticle = new THREE.Mesh(
   new THREE.RingGeometry(0.06,0.09,24),
   new THREE.MeshBasicMaterial({color:0x00c8ff, side:THREE.DoubleSide})
@@ -3871,7 +3870,7 @@ function loop(ts, frame) {
       reticle.visible = !modelPlaced;
       if (!modelPlaced) {
         reticle.position.setFromMatrixPosition(reticle.matrix);
-        lastHitPosition = reticle.position.clone(); // always save last good hit
+        lastHitPosition = reticle.position.clone();
       }
     }
   }
@@ -4038,52 +4037,58 @@ function checkAR() {
   });
 }
 
+var lastHitPosition = null;
+
 function startAR() {
   if (!model) { alert('Model still loading, wait a moment.'); return; }
   navigator.xr.requestSession('immersive-ar', {
-    requiredFeatures: ['hit-test'],
-    optionalFeatures: ['dom-overlay'],
+    requiredFeatures: [],
+    optionalFeatures: ['hit-test', 'dom-overlay'],
     domOverlay: { root: document.body }
   }).then(function(session) {
-    xrSession = session; arMode = true; modelPlaced = false;
+    xrSession = session; arMode = true; modelPlaced = false; lastHitPosition = null;
     scene.background = null; scene.fog = null; grid.visible = false;
-    model.visible = false; // hide until placed
+    model.visible = false;
     renderer.xr.setSession(session);
+
+    // Try to get hit-test source — optional, camera opens regardless
     session.requestReferenceSpace('viewer').then(function(vs) {
       session.requestHitTestSource({space: vs}).then(function(src) {
         hitTestSource = src;
+      }).catch(function(){
+        hitTestSource = null; // hit-test not available, tap will use fallback
       });
-    });
-    // TAP = select event in WebXR
+    }).catch(function(){ hitTestSource = null; });
+
     function placeModel() {
       if (modelPlaced) return;
-      // Use reticle if visible; fall back to lastHitPosition; else place 2m in front
       var placePos;
-      if (reticle.visible) {
-        placePos = reticle.position.clone();
+      if (reticle.visible && lastHitPosition) {
+        placePos = lastHitPosition.clone();
       } else if (lastHitPosition) {
         placePos = lastHitPosition.clone();
       } else {
-        // Fallback: place 2m in front of camera
-        var camDir = new THREE.Vector3();
-        camera.getWorldDirection(camDir);
-        placePos = camera.position.clone().addScaledVector(camDir, 2);
-        placePos.y -= 1; // drop to floor level approx
+        // No surface detected — place 1.5m in front, 1m below camera
+        var dir = new THREE.Vector3();
+        camera.getWorldDirection(dir);
+        placePos = camera.position.clone().addScaledVector(dir, 1.5);
+        placePos.y -= 1.0;
       }
       model.position.copy(placePos);
-      model.visible = true; reticle.visible = false; modelPlaced = true;
+      model.visible = true;
+      reticle.visible = false;
+      modelPlaced = true;
       document.getElementById('arTap').style.display = 'none';
     }
-    // WebXR select (controller/tap)
+
     session.addEventListener('select', placeModel);
-    // Touchstart fallback — more reliable on many Android phones
     function arTouchHandler(e){ e.preventDefault(); placeModel(); }
     document.getElementById('c').addEventListener('touchstart', arTouchHandler, {passive:false});
     session.addEventListener('end', function(){
       exitAR();
       document.getElementById('c').removeEventListener('touchstart', arTouchHandler);
     });
-    document.getElementById('bAR').textContent = '⏹ IN AR';
+    document.getElementById('bAR').textContent = '⏹ EXIT AR';
     document.getElementById('arExit').style.display = 'block';
     document.getElementById('arTap').style.display = 'block';
     document.getElementById('bar').style.display = 'none';
