@@ -2128,7 +2128,8 @@ function startAR() {
               "none";
 
           };
-
+         
+      document.getElementById("arTap").onclick = placeModel;
 
         session.addEventListener(
           "select",
