@@ -1866,61 +1866,33 @@ let arMode = false;
 let xrSession = null;
 let modelPlaced = false;
 
-/*
-  IMPORTANT:
-  Do NOT request viewer reference space or hit-test during AR startup.
-  Some Android/WebXR implementations can expose immersive-ar but fail
-  on requestReferenceSpace("viewer"), which prevents the camera session
-  from becoming usable.
-
-  The camera session is started first. Turbine placement is then done
-  from the AR view with a simple fixed-distance fallback.
-*/
-
-const reticle =
-  new THREE.Mesh(
-    new THREE.RingGeometry(0.06, 0.09, 32),
-    new THREE.MeshBasicMaterial({
-      color: 0x00c8ff,
-      side: THREE.DoubleSide
-    })
-  );
+const reticle = new THREE.Mesh(
+  new THREE.RingGeometry(0.06, 0.09, 32),
+  new THREE.MeshBasicMaterial({
+    color: 0x00c8ff,
+    side: THREE.DoubleSide
+  })
+);
 
 reticle.rotation.x = -Math.PI / 2;
 reticle.visible = false;
 scene.add(reticle);
-
 
 /* ============================================================
    CHECK AR
    ============================================================ */
 
 function checkAR() {
-
   const button = document.getElementById("bAR");
 
-  if (!navigator.xr || !button) {
-    return;
-  }
+  if (!navigator.xr || !button) return;
 
-  navigator.xr
-    .isSessionSupported("immersive-ar")
+  navigator.xr.isSessionSupported("immersive-ar")
     .then(supported => {
-
-      if (supported) {
-        button.style.display = "block";
-        console.log("AR: immersive-ar is supported.");
-      } else {
-        console.warn("AR: immersive-ar is not supported.");
-      }
-
+      if (supported) button.style.display = "block";
     })
-    .catch(error => {
-      console.warn("AR support check failed:", error);
-    });
-
+    .catch(() => {});
 }
-
 
 /* ============================================================
    START AR
@@ -1935,190 +1907,144 @@ async function startAR() {
 
   if (!navigator.xr) {
     alert(
-      "WebXR is not available in this browser. " +
-      "Open this page in Chrome on a compatible AR Android device."
+      "WebXR is not available in this browser. Open this page in Chrome on a compatible AR Android device."
     );
     return;
   }
 
   try {
-
     console.log("AR 1: checking immersive-ar support...");
 
     const supported =
       await navigator.xr.isSessionSupported("immersive-ar");
 
     if (!supported) {
-      throw new Error(
-        "Immersive AR is not supported on this device/browser."
-      );
+      throw new Error("Immersive AR is not supported on this device/browser.");
     }
 
-    console.log("AR 2: requesting immersive-ar session...");
+    console.log("AR 2: requesting AR with DOM overlay...");
 
     /*
-      Keep session startup as small as possible.
+      DOM OVERLAY IS REQUIRED here.
 
-      No hit-test.
-      No viewer reference space.
-      No local-floor requirement.
+      This is the important difference from the previous version:
+      the browser was entering the XR fullscreen camera, but because
+      DOM overlay was only OPTIONAL, some devices accepted AR without
+      exposing our HTML controls. The user therefore saw only the
+      camera/fullscreen view and had no placement button.
 
-      This is deliberate. The previous startup path could fail at
-      session.requestReferenceSpace("viewer") before the AR camera
-      became usable on some devices.
+      We do NOT request viewer/hit-test reference spaces during startup.
+      Therefore the previous requestReferenceSpace device error cannot
+      block camera startup.
     */
     const session =
-      await navigator.xr.requestSession(
-        "immersive-ar",
-        {
-          requiredFeatures: [],
-          optionalFeatures: ["dom-overlay"],
-          domOverlay: {
-            root: document.body
-          }
+      await navigator.xr.requestSession("immersive-ar", {
+        requiredFeatures: ["dom-overlay"],
+        optionalFeatures: [],
+        domOverlay: {
+          root: document.body
         }
-      );
+      });
 
-    console.log("AR 3: XR session created.");
+    console.log("AR 3: XR session created with DOM overlay.");
 
     xrSession = session;
 
-    /*
-      Connect Three.js to the XR session immediately.
-      This is the critical camera-start step.
-    */
-    console.log("AR 4: connecting Three.js renderer...");
-
+    /* Connect Three.js immediately. */
     await renderer.xr.setSession(session);
 
-    console.log("AR 5: Three.js renderer connected. Camera active.");
+    console.log("AR 4: Three.js renderer connected. Camera active.");
 
     arMode = true;
     modelPlaced = false;
 
-    /*
-      Make the scene transparent so the real camera is visible.
-    */
     scene.background = null;
     scene.fog = null;
-
     grid.visible = false;
     model.visible = false;
     reticle.visible = false;
 
-    /*
-      Hide desktop controls.
-    */
     document.getElementById("bar").style.display = "none";
     document.getElementById("ctrls").style.display = "none";
 
-    /*
-      Show AR controls.
-    */
-    document.getElementById("arExit").style.display = "block";
-    document.getElementById("arTap").style.display = "block";
+    const arTap = document.getElementById("arTap");
+    const arExit = document.getElementById("arExit");
 
     /*
-      Place turbine when the user taps the AR button or the XR surface.
-      No hit-test is required, so this cannot block camera startup.
+      These are DOM-overlay elements, so they remain visible over the
+      live camera feed while immersive AR is running.
+    */
+    arTap.textContent = "👆 TAP TO PLACE TURBINE ON FLOOR";
+    arTap.style.display = "block";
+    arExit.style.display = "block";
+
+    /*
+      Place the normalized turbine approximately on the floor in front
+      of the user. This deliberately uses only the XR camera and does
+      not require hit-test/reference-space support.
     */
     const placeModel = () => {
+      if (modelPlaced || !model) return;
 
-      if (modelPlaced || !model) {
-        return;
+      const xrCamera = renderer.xr.getCamera(camera);
+      const direction = new THREE.Vector3();
+
+      xrCamera.getWorldDirection(direction);
+      direction.y = 0;
+
+      if (direction.lengthSq() < 0.0001) {
+        direction.set(0, 0, -1);
+      } else {
+        direction.normalize();
       }
 
-      /*
-        Use the active XR camera position/direction.
-        getCamera() returns the camera actually used for XR rendering.
-      */
-      const xrCamera = renderer.xr.getCamera(camera);
-
-      const direction = new THREE.Vector3();
-      xrCamera.getWorldDirection(direction);
-
-      const position =
-        xrCamera.position
-          .clone()
-          .addScaledVector(direction, 1.5);
+      const position = xrCamera.position
+        .clone()
+        .addScaledVector(direction, 1.5);
 
       /*
-        Put the turbine approximately at the user's eye-level view,
-        then lower it so its normalized base sits near the floor.
+        The model was normalized so its base is at local y=0.
+        XR local space normally starts around the user's position,
+        so lowering by the current camera height puts the base near
+        floor level without asking for a reference space.
       */
-      position.y -= 1.0;
+      position.y -= xrCamera.position.y;
+      position.y += 0.03;
 
       model.position.copy(position);
       model.visible = true;
-
       modelPlaced = true;
-      reticle.visible = false;
 
-      document.getElementById("arTap").style.display = "none";
+      arTap.style.display = "none";
 
-      console.log("AR 6: turbine placed.", position);
+      console.log("AR 5: turbine placed on floor.", position);
     };
-
-    /*
-      XR controller/select event.
-    */
-    session.addEventListener(
-      "select",
-      placeModel
-    );
-
-    /*
-      HTML overlay button.
-    */
-    const arTap = document.getElementById("arTap");
 
     arTap.onclick = placeModel;
 
-    /*
-      Session ended by browser/device.
-    */
-    session.addEventListener(
-      "end",
-      () => {
+    /* Also allow a normal XR select/tap as a secondary placement method. */
+    session.addEventListener("select", placeModel);
 
-        console.log("AR 7: XR session ended.");
+    session.addEventListener("end", () => {
+      console.log("AR 6: XR session ended.");
+      cleanupAR(false);
+    });
 
-        cleanupAR(false);
-
-      }
-    );
-
-    /*
-      Update desktop AR button.
-    */
     const button = document.getElementById("bAR");
+    if (button) button.textContent = "⏹ EXIT AR";
 
-    if (button) {
-      button.textContent = "⏹ EXIT AR";
-    }
+    console.log("AR 7: READY. Camera + placement button should be visible.");
 
-    console.log("AR 8: READY. Camera should be visible.");
-
-  }
-
-  catch (error) {
-
+  } catch (error) {
     console.error("AR START ERROR:", error);
-
     cleanupAR(false);
 
     alert(
       "AR could not start.\n\n" +
-      (
-        error?.message ||
-        "The browser/device did not start the AR camera."
-      )
+      (error?.message || "The browser/device did not start the AR camera.")
     );
-
   }
-
 }
-
 
 /* ============================================================
    CLEANUP AR
@@ -2135,9 +2061,6 @@ function cleanupAR(
   modelPlaced =
     false;
 
-
-  hitTestSource =
-    null;
 
 
   if (
@@ -2263,77 +2186,14 @@ document.getElementById(
    ============================================================ */
 
 function renderLoop(timestamp, frame) {
-
-  if (
-    arMode &&
-    frame &&
-    hitTestSource
-  ) {
-
-    const referenceSpace =
-      renderer.xr.getReferenceSpace();
-
-    if (referenceSpace) {
-
-      const hits =
-        frame.getHitTestResults(
-          hitTestSource
-        );
-
-      if (hits.length) {
-
-        const pose =
-          hits[0].getPose(
-            referenceSpace
-          );
-
-        if (pose) {
-
-          reticle.matrixAutoUpdate = false;
-
-          reticle.matrix.fromArray(
-            pose.transform.matrix
-          );
-
-          reticle.visible =
-            !modelPlaced;
-
-          if (!modelPlaced) {
-
-            lastHitPosition =
-              new THREE.Vector3()
-                .setFromMatrixPosition(
-                  reticle.matrix
-                );
-
-          }
-
-        }
-
-      }
-
-    }
-
-  }
-
-
-  renderer.render(
-    scene,
-    camera
-  );
-
+  renderer.render(scene, camera);
 
   if (labelsOn) {
     projectTagsWithEdit();
   }
-
 }
 
-
-renderer.setAnimationLoop(
-  renderLoop
-);
-
+renderer.setAnimationLoop(renderLoop);
 
 /* ============================================================
    BASIC CONTROLS
