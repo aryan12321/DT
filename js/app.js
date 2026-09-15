@@ -1863,49 +1863,32 @@ function colorMeshes() {
    ============================================================ */
 
 let arMode = false;
-
 let xrSession = null;
-
-let hitTestSource = null;
-
 let modelPlaced = false;
 
-let lastHitPosition = null;
+/*
+  IMPORTANT:
+  Do NOT request viewer reference space or hit-test during AR startup.
+  Some Android/WebXR implementations can expose immersive-ar but fail
+  on requestReferenceSpace("viewer"), which prevents the camera session
+  from becoming usable.
 
+  The camera session is started first. Turbine placement is then done
+  from the AR view with a simple fixed-distance fallback.
+*/
 
 const reticle =
   new THREE.Mesh(
-
-    new THREE.RingGeometry(
-      0.06,
-      0.09,
-      32
-    ),
-
+    new THREE.RingGeometry(0.06, 0.09, 32),
     new THREE.MeshBasicMaterial({
-
-      color:
-        0x00c8ff,
-
-      side:
-        THREE.DoubleSide
-
+      color: 0x00c8ff,
+      side: THREE.DoubleSide
     })
-
   );
 
-
-reticle.rotation.x =
-  -Math.PI / 2;
-
-
-reticle.visible =
-  false;
-
-
-scene.add(
-  reticle
-);
+reticle.rotation.x = -Math.PI / 2;
+reticle.visible = false;
+scene.add(reticle);
 
 
 /* ============================================================
@@ -1914,43 +1897,27 @@ scene.add(
 
 function checkAR() {
 
-  const button =
-    document.getElementById(
-      "bAR"
-    );
+  const button = document.getElementById("bAR");
 
-
-  if (
-    !navigator.xr ||
-    !button
-  ) {
-
+  if (!navigator.xr || !button) {
     return;
-
   }
 
-
   navigator.xr
-    .isSessionSupported(
-      "immersive-ar"
-    )
+    .isSessionSupported("immersive-ar")
+    .then(supported => {
 
-    .then(
-      supported => {
-
-        if (supported) {
-
-          button.style.display =
-            "block";
-
-        }
-
+      if (supported) {
+        button.style.display = "block";
+        console.log("AR: immersive-ar is supported.");
+      } else {
+        console.warn("AR: immersive-ar is not supported.");
       }
-    )
 
-    .catch(
-      () => {}
-    );
+    })
+    .catch(error => {
+      console.warn("AR support check failed:", error);
+    });
 
 }
 
@@ -1976,74 +1943,71 @@ async function startAR() {
 
   try {
 
-    console.log("AR: checking session support...");
+    console.log("AR 1: checking immersive-ar support...");
 
     const supported =
       await navigator.xr.isSessionSupported("immersive-ar");
 
     if (!supported) {
-      alert(
+      throw new Error(
         "Immersive AR is not supported on this device/browser."
       );
-      return;
     }
 
-    console.log("AR: requesting immersive session...");
+    console.log("AR 2: requesting immersive-ar session...");
 
     /*
-      Keep the initial request deliberately simple.
+      Keep session startup as small as possible.
 
-      Hit-test and DOM overlay are optional.
-      Some browsers become unreliable when too many
-      optional features are requested together.
+      No hit-test.
+      No viewer reference space.
+      No local-floor requirement.
+
+      This is deliberate. The previous startup path could fail at
+      session.requestReferenceSpace("viewer") before the AR camera
+      became usable on some devices.
     */
     const session =
       await navigator.xr.requestSession(
         "immersive-ar",
         {
           requiredFeatures: [],
-          optionalFeatures: [
-            "hit-test",
-            "dom-overlay"
-          ],
+          optionalFeatures: ["dom-overlay"],
           domOverlay: {
             root: document.body
           }
         }
       );
 
-    console.log("AR: session created.");
+    console.log("AR 3: XR session created.");
 
     xrSession = session;
-    arMode = true;
-    modelPlaced = false;
-    hitTestSource = null;
-    lastHitPosition = null;
 
     /*
-      IMPORTANT:
-      Configure Three.js BEFORE changing the scene into AR mode.
+      Connect Three.js to the XR session immediately.
+      This is the critical camera-start step.
     */
-    console.log("AR: connecting Three renderer...");
+    console.log("AR 4: connecting Three.js renderer...");
 
     await renderer.xr.setSession(session);
 
-    console.log("AR: Three renderer connected.");
+    console.log("AR 5: Three.js renderer connected. Camera active.");
+
+    arMode = true;
+    modelPlaced = false;
 
     /*
-      Transparent scene so the real camera becomes visible.
+      Make the scene transparent so the real camera is visible.
     */
     scene.background = null;
     scene.fog = null;
 
     grid.visible = false;
-
     model.visible = false;
-
     reticle.visible = false;
 
     /*
-      Hide normal desktop UI.
+      Hide desktop controls.
     */
     document.getElementById("bar").style.display = "none";
     document.getElementById("ctrls").style.display = "none";
@@ -2054,155 +2018,93 @@ async function startAR() {
     document.getElementById("arExit").style.display = "block";
     document.getElementById("arTap").style.display = "block";
 
-    console.log("AR: requesting viewer reference space...");
-
     /*
-      Hit testing uses the viewer space.
-    */
-    try {
-
-      const viewerSpace =
-        await session.requestReferenceSpace("viewer");
-
-      hitTestSource =
-        await session.requestHitTestSource({
-          space: viewerSpace
-        });
-
-      console.log("AR: hit-test enabled.");
-
-    }
-
-    catch (hitError) {
-
-      console.warn(
-        "AR: hit-test unavailable:",
-        hitError
-      );
-
-      hitTestSource = null;
-
-    }
-
-    /*
-      Placement function.
+      Place turbine when the user taps the AR button or the XR surface.
+      No hit-test is required, so this cannot block camera startup.
     */
     const placeModel = () => {
 
-      if (modelPlaced)
+      if (modelPlaced || !model) {
         return;
-
-      let position;
-
-      /*
-        Prefer detected real-world surface.
-      */
-      if (lastHitPosition) {
-
-        position =
-          lastHitPosition.clone();
-
       }
 
       /*
-        Fallback if hit-test isn't available.
+        Use the active XR camera position/direction.
+        getCamera() returns the camera actually used for XR rendering.
       */
-      else {
+      const xrCamera = renderer.xr.getCamera(camera);
 
-        const direction =
-          new THREE.Vector3();
+      const direction = new THREE.Vector3();
+      xrCamera.getWorldDirection(direction);
 
-        camera.getWorldDirection(direction);
+      const position =
+        xrCamera.position
+          .clone()
+          .addScaledVector(direction, 1.5);
 
-        position =
-          camera.position
-            .clone()
-            .addScaledVector(direction, 1.5);
-
-        position.y -= 1;
-
-      }
+      /*
+        Put the turbine approximately at the user's eye-level view,
+        then lower it so its normalized base sits near the floor.
+      */
+      position.y -= 1.0;
 
       model.position.copy(position);
-
       model.visible = true;
 
+      modelPlaced = true;
       reticle.visible = false;
 
-      modelPlaced = true;
+      document.getElementById("arTap").style.display = "none";
 
-      document.getElementById(
-        "arTap"
-      ).style.display = "none";
-
-      console.log(
-        "AR: turbine placed.",
-        position
-      );
-
+      console.log("AR 6: turbine placed.", position);
     };
 
-
     /*
-      Physical AR tap.
+      XR controller/select event.
     */
     session.addEventListener(
       "select",
       placeModel
     );
 
-
     /*
-      HTML button tap.
+      HTML overlay button.
     */
-    const arTap =
-      document.getElementById("arTap");
+    const arTap = document.getElementById("arTap");
 
-    arTap.onclick =
-      placeModel;
-
+    arTap.onclick = placeModel;
 
     /*
-      Exit AR when the browser/session ends.
+      Session ended by browser/device.
     */
     session.addEventListener(
       "end",
       () => {
 
-        console.log("AR: session ended.");
+        console.log("AR 7: XR session ended.");
 
         cleanupAR(false);
 
       }
     );
 
-
     /*
-      Change button state.
+      Update desktop AR button.
     */
-    const button =
-      document.getElementById("bAR");
+    const button = document.getElementById("bAR");
 
     if (button) {
       button.textContent = "⏹ EXIT AR";
     }
 
-    console.log(
-      "AR: READY. Camera should now be visible."
-    );
+    console.log("AR 8: READY. Camera should be visible.");
 
   }
 
   catch (error) {
 
-    console.error(
-      "AR START ERROR:",
-      error
-    );
+    console.error("AR START ERROR:", error);
 
-    /*
-      Restore normal viewer.
-    */
     cleanupAR(false);
 
     alert(
