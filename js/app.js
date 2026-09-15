@@ -1950,6 +1950,14 @@ async function startAR() {
 
     xrSession = session;
 
+    /*
+      IMPORTANT: Three.js defaults to the "local-floor" reference space.
+      Some Android AR implementations support immersive-ar but do NOT
+      support local-floor (and the earlier code also failed on viewer).
+      Use the most widely supported "local" space instead.
+    */
+    renderer.xr.setReferenceSpaceType("local");
+
     /* Connect Three.js immediately. */
     await renderer.xr.setSession(session);
 
@@ -2008,8 +2016,8 @@ async function startAR() {
         so lowering by the current camera height puts the base near
         floor level without asking for a reference space.
       */
-      position.y -= xrCamera.position.y;
-      position.y += 0.03;
+      /* In XR "local" space, keep the model at the local origin height. */
+      position.y = 0.03;
 
       model.position.copy(position);
       model.visible = true;
