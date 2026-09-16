@@ -567,58 +567,223 @@ function colorMeshes(){
 }
 
 /* ============================================================
-   AR / WEBXR
+   AR / WEBXR  — with pinch-zoom, rotate, drag gestures
    ============================================================ */
 let xrSession=null, modelPlaced=false;
 const reticle=new THREE.Mesh(new THREE.RingGeometry(0.06,0.09,32),new THREE.MeshBasicMaterial({color:0x00c8ff,side:THREE.DoubleSide}));
 reticle.rotation.x=-Math.PI/2; reticle.visible=false; scene.add(reticle);
+
+/* ── AR gesture state ── */
+const arGesture = {
+  touches: {},          // id → {x,y}
+  lastDist: null,       // pinch distance
+  lastAngle: null,      // twist angle
+  lastMidX: null,       // pan midpoint
+  lastMidY: null
+};
+
+function arTouchCount(){ return Object.keys(arGesture.touches).length; }
+
+function arGetMid(){
+  const pts=Object.values(arGesture.touches);
+  return { x:(pts[0].x+pts[1].x)/2, y:(pts[0].y+pts[1].y)/2 };
+}
+function arGetDist(){
+  const pts=Object.values(arGesture.touches);
+  const dx=pts[1].x-pts[0].x, dy=pts[1].y-pts[0].y;
+  return Math.sqrt(dx*dx+dy*dy);
+}
+function arGetAngle(){
+  const pts=Object.values(arGesture.touches);
+  return Math.atan2(pts[1].y-pts[0].y, pts[1].x-pts[0].x);
+}
+
+function onARTouchStart(e){
+  if(!arMode||!modelPlaced) return;
+  e.preventDefault();
+  Array.from(e.changedTouches).forEach(t=>{ arGesture.touches[t.identifier]={x:t.clientX,y:t.clientY}; });
+
+  if(arTouchCount()===2){
+    arGesture.lastDist  = arGetDist();
+    arGesture.lastAngle = arGetAngle();
+    const mid=arGetMid();
+    arGesture.lastMidX=mid.x; arGesture.lastMidY=mid.y;
+  } else if(arTouchCount()===1){
+    const pt=Object.values(arGesture.touches)[0];
+    arGesture.lastMidX=pt.x; arGesture.lastMidY=pt.y;
+  }
+}
+
+function onARTouchMove(e){
+  if(!arMode||!modelPlaced||!model) return;
+  e.preventDefault();
+  Array.from(e.changedTouches).forEach(t=>{ arGesture.touches[t.identifier]={x:t.clientX,y:t.clientY}; });
+
+  const n=arTouchCount();
+
+  if(n===1){
+    /* ── ONE FINGER: pan / drag model on floor plane ── */
+    const pt=Object.values(arGesture.touches)[0];
+    const dx=(pt.x-arGesture.lastMidX)/innerWidth;
+    const dz=(pt.y-arGesture.lastMidY)/innerHeight;
+
+    /* Move relative to camera's forward direction projected onto XZ */
+    const xrCam=renderer.xr.getCamera(camera);
+    const forward=new THREE.Vector3();
+    xrCam.getWorldDirection(forward); forward.y=0; forward.normalize();
+    const right=new THREE.Vector3().crossVectors(forward,new THREE.Vector3(0,1,0)).normalize();
+
+    model.position.addScaledVector(right,   dx * 2.0);
+    model.position.addScaledVector(forward, -dz * 2.0);
+
+    arGesture.lastMidX=pt.x; arGesture.lastMidY=pt.y;
+
+  } else if(n===2){
+    /* ── TWO FINGERS: pinch = scale, twist = rotate ── */
+    const dist  = arGetDist();
+    const angle = arGetAngle();
+    const mid   = arGetMid();
+
+    /* Scale */
+    if(arGesture.lastDist!==null){
+      const scaleFactor = dist / arGesture.lastDist;
+      const newScale = THREE.MathUtils.clamp(model.scale.x * scaleFactor, 0.1, 10);
+      model.scale.setScalar(newScale);
+    }
+
+    /* Rotate around Y axis (twist gesture) */
+    if(arGesture.lastAngle!==null){
+      const dAngle = angle - arGesture.lastAngle;
+      model.rotation.y += dAngle;
+    }
+
+    /* Pan with two-finger midpoint */
+    if(arGesture.lastMidX!==null){
+      const dx=(mid.x-arGesture.lastMidX)/innerWidth;
+      const dz=(mid.y-arGesture.lastMidY)/innerHeight;
+      const xrCam=renderer.xr.getCamera(camera);
+      const forward=new THREE.Vector3();
+      xrCam.getWorldDirection(forward); forward.y=0; forward.normalize();
+      const right=new THREE.Vector3().crossVectors(forward,new THREE.Vector3(0,1,0)).normalize();
+      model.position.addScaledVector(right,   dx * 2.0);
+      model.position.addScaledVector(forward, -dz * 2.0);
+    }
+
+    arGesture.lastDist  = dist;
+    arGesture.lastAngle = angle;
+    arGesture.lastMidX  = mid.x;
+    arGesture.lastMidY  = mid.y;
+  }
+}
+
+function onARTouchEnd(e){
+  if(!arMode) return;
+  Array.from(e.changedTouches).forEach(t=>{ delete arGesture.touches[t.identifier]; });
+
+  /* Reset gesture baseline when fingers lift */
+  arGesture.lastDist=null; arGesture.lastAngle=null;
+  if(arTouchCount()===1){
+    const pt=Object.values(arGesture.touches)[0];
+    arGesture.lastMidX=pt.x; arGesture.lastMidY=pt.y;
+  }
+}
+
+function attachARGestures(){
+  /* Attach to the overlay root so gestures work over the canvas */
+  document.body.addEventListener("touchstart", onARTouchStart, {passive:false});
+  document.body.addEventListener("touchmove",  onARTouchMove,  {passive:false});
+  document.body.addEventListener("touchend",   onARTouchEnd,   {passive:false});
+  document.body.addEventListener("touchcancel",onARTouchEnd,   {passive:false});
+}
+function detachARGestures(){
+  document.body.removeEventListener("touchstart", onARTouchStart);
+  document.body.removeEventListener("touchmove",  onARTouchMove);
+  document.body.removeEventListener("touchend",   onARTouchEnd);
+  document.body.removeEventListener("touchcancel",onARTouchEnd);
+}
 
 function checkAR(){
   const btn=document.getElementById("bAR");
   if(!navigator.xr||!btn) return;
   navigator.xr.isSessionSupported("immersive-ar").then(ok=>{ if(ok) btn.style.display="block"; }).catch(()=>{});
 }
+
 async function startAR(){
   if(!model){alert("Still loading.");return;}
   if(!navigator.xr){alert("WebXR not available.");return;}
   try{
     if(!await navigator.xr.isSessionSupported("immersive-ar")) throw new Error("AR not supported.");
-    const session=await navigator.xr.requestSession("immersive-ar",{requiredFeatures:["dom-overlay"],domOverlay:{root:document.body}});
-    xrSession=session; renderer.xr.setReferenceSpaceType("local");
+    const session=await navigator.xr.requestSession("immersive-ar",{
+      requiredFeatures:["dom-overlay"],
+      domOverlay:{root:document.body}
+    });
+    xrSession=session;
+    renderer.xr.setReferenceSpaceType("local");
     await renderer.xr.setSession(session);
     arMode=true; modelPlaced=false;
+
+    /* Reset gesture state */
+    Object.keys(arGesture.touches).forEach(k=>delete arGesture.touches[k]);
+    arGesture.lastDist=arGesture.lastAngle=arGesture.lastMidX=arGesture.lastMidY=null;
+
     scene.background=null; scene.fog=null;
     grid.visible=model.visible=false;
     ["bar","ctrls","machine-panel"].forEach(id=>document.getElementById(id).style.display="none");
-    const arTap=document.getElementById("arTap"),arExit=document.getElementById("arExit");
-    arTap.textContent="👆 TAP TO PLACE TURBINE"; arTap.style.display=arExit.style.display="block";
+
+    const arTap=document.getElementById("arTap"), arExit=document.getElementById("arExit");
+    arTap.textContent="👆 TAP TO PLACE TURBINE";
+    arTap.style.display=arExit.style.display="block";
+
     const place=()=>{
       if(modelPlaced||!model) return;
       const xrCam=renderer.xr.getCamera(camera);
-      const dir=new THREE.Vector3(); xrCam.getWorldDirection(dir); dir.y=0;
+      const dir=new THREE.Vector3();
+      xrCam.getWorldDirection(dir); dir.y=0;
       if(dir.lengthSq()<0.0001) dir.set(0,0,-1); else dir.normalize();
-      const pos=xrCam.position.clone().addScaledVector(dir,1.5); pos.y=0.03;
-      model.position.copy(pos); model.visible=true; modelPlaced=true; arTap.style.display="none";
+      const pos=xrCam.position.clone().addScaledVector(dir,1.5);
+      pos.y=0.03;
+      model.position.copy(pos);
+      model.scale.setScalar(1);   // reset scale on each placement
+      model.rotation.y=0;
+      model.visible=true;
+      modelPlaced=true;
+      arTap.style.display="none";
+
+      /* Show gesture hint briefly */
+      setStatus("1 finger: move • 2 fingers: pinch=zoom, twist=rotate",true);
+      setTimeout(()=>setStatus("",false),3500);
     };
-    arTap.onclick=place; session.addEventListener("select",place);
+
+    arTap.onclick=place;
+    session.addEventListener("select",place);
     session.addEventListener("end",()=>cleanupAR(false));
     document.getElementById("bAR").textContent="⏹ EXIT AR";
+
+    attachARGestures();
+
   }catch(err){ console.error(err); cleanupAR(false); alert("AR failed: "+(err.message||"?")); }
 }
+
 function cleanupAR(end=true){
   arMode=false; modelPlaced=false;
+  detachARGestures();
+
   if(end&&xrSession){try{xrSession.end();}catch(_){}}
   xrSession=null;
-  scene.background=new THREE.Color(0x0a0d12); scene.fog=new THREE.FogExp2(0x0a0d12,0.03);
+
+  scene.background=new THREE.Color(0x0a0d12);
+  scene.fog=new THREE.FogExp2(0x0a0d12,0.03);
   grid.visible=true;
-  if(model){model.visible=true;model.position.set(0,0,0);}
+  if(model){ model.visible=true; model.position.set(0,0,0); model.scale.setScalar(1); model.rotation.y=0; }
   reticle.visible=false;
+
   document.getElementById("bAR").textContent="📷 START AR";
   ["arExit","arTap"].forEach(id=>document.getElementById(id).style.display="none");
   document.getElementById("bar").style.display="flex";
   document.getElementById("ctrls").style.display="flex";
   if(model) document.getElementById("machine-panel").style.display="block";
 }
+
 document.getElementById("bAR").onclick=()=>arMode?cleanupAR(true):startAR();
 document.getElementById("arExit").onclick=()=>cleanupAR(true);
 
