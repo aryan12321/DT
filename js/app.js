@@ -27,21 +27,115 @@ const TW=80, TA=90;    // temp warn/alert °C
 /*
   Model facts (from GLB accessor bounds, post-normalizeModel):
     Raw bounds:  X[-1, +1]  Y[-0.119, +0.122]  Z[-0.141, +0.141]
-    normalizeModel scales by 6/2 = 3 and lifts base to Y=0
+    normalizeModel scales by 3× and lifts base to Y=0
     → Normalized: X[-3, +3]  Y[0, ~0.72]  Z[-0.42, +0.42]
-    Shaft centreline Y ≈ 0.36
-    Tag anchor above shaft: Y = 0.72  (top surface)
-    Tag anchor below shaft: Y = 0.00  (bottom surface / base)
+    Shaft centreline Y ≈ 0.36   shaft radius ≈ 0.36
 
-  7 bearings equally spaced along X[-3, +3] = 6 units
-    Spacing: 6/6 = 1.0 unit per gap
-    Positions: -2.8, -1.8, -0.8, +0.2, +1.2, +2.0, +2.8
-    (HPT left → GEN NDE right, matching physical layout)
+  Tag anchor Y:
+    above (below:false) → top surface of shaft = 0.72
+    below (below:true)  → shaft centreline = 0.36
+    (below tags hang DOWN from centreline, so dot sits on shaft side)
 
-  Alternating above/below: 1,3,5,7 above  |  2,4,6 below
+  X positions from SCADA proportional layout:
+    BRG1(HPT)   8% → -2.52
+    BRG2(HPT/I) 22% → -1.68
+    BRG3(IPT)   37% → -0.78
+    BRG4(LPT)   52% →  0.12
+    BRG5(LPT-2) 64% →  0.84
+    BRG6(GEN DE)78% →  1.68
+    BRG7(GEN NDE)92%→  2.52
 */
-const SY_TOP  =  0.80;   // Y anchor above shaft (tag floats up from here)
-const SY_BOT  =  0.00;   // Y anchor below shaft (tag hangs down from here)
+const SY_TOP = 0.72;   // above shaft — top surface
+const SY_MID = 0.36;   // below shaft — centreline (tag card hangs down)
+
+const BEARINGS = [
+  {
+    id:"BRG1", label:"BRG-1", sub:"MAD10", sec:"HPT",
+    below:false, axFrac:0.08,
+    dp:[-2.52, SY_TOP, 0],
+    mk:["BRG1","BEARING1","BRG-1","MAD10"],
+    vX:"BRG 1 VIB-X SHAFT REL",
+    vY:"BRG 1 VIB-Y SHAFT REL",
+    temps:[
+      { label:"T METAL",   key:"T METAL RADIAL BRG-1" },
+      { label:"LPT EXT T", key:"" },
+      { label:"T VERT",    key:"" }
+    ]
+  },
+  {
+    id:"BRG2", label:"BRG-2", sub:"MAD21", sec:"HPT/IPT",
+    below:true, axFrac:0.22,
+    dp:[-1.68, SY_MID, 0],
+    mk:["BRG2","BEARING2","BRG-2","MAD21"],
+    vX:"BRG-2 VIB-X SHAFT REL",
+    vY:"BRG-2 VIB-Y SHAFT REL",
+    temps:[
+      { label:"T METAL-1", key:"" },
+      { label:"T METAL-2", key:"T METAL THRUST BRG-2" }
+    ]
+  },
+  {
+    id:"BRG3", label:"BRG-3", sub:"MAC10/MAD31", sec:"IPT",
+    below:false, axFrac:0.37,
+    dp:[-0.78, SY_TOP, 0],
+    mk:["BRG3","BEARING3","BRG-3","MAC10","MAD31"],
+    vX:"BRG-3 VIB-X SHAFT REL",
+    vY:"BRG-3 VIB-Y SHAFT REL",
+    temps:[
+      { label:"T METAL",   key:"T METAL RADIAL BRG-3" },
+      { label:"LPT EXT T", key:"" },
+      { label:"LPT VERT",  key:"" }
+    ]
+  },
+  {
+    id:"BRG4", label:"BRG-4", sub:"MAC20/MAD41", sec:"LPT",
+    below:true, axFrac:0.52,
+    dp:[ 0.12, SY_MID, 0],
+    mk:["BRG4","BEARING4","BRG-4","MAC20","MAD41"],
+    vX:"BRG-4 VIB -X SHAFT REL",
+    vY:"BRG-4 VIB -Y SHAFT REL",
+    temps:[
+      { label:"T METAL",   key:"T METAL RADIAL BRG-4" },
+      { label:"LPT EXT T", key:"" },
+      { label:"LPT VERT",  key:"" }
+    ]
+  },
+  {
+    id:"BRG5", label:"BRG-5", sub:"MKD11", sec:"LPT-2",
+    below:false, axFrac:0.64,
+    dp:[ 0.84, SY_TOP, 0],
+    mk:["BRG5","BEARING5","BRG-5","MKD11"],
+    vX:"",
+    vY:"",
+    temps:[
+      { label:"T METAL",   key:"T MTL RADIAL BRG LPT-1" },
+      { label:"T EXT",     key:"" }
+    ]
+  },
+  {
+    id:"BRG6", label:"BRG-6", sub:"MKD21", sec:"GEN DE",
+    below:true, axFrac:0.78,
+    dp:[ 1.68, SY_MID, 0],
+    mk:["BRG6","BEARING6","BRG-6","MKD21"],
+    vX:"BRG-5 VIB-X SHAFT REL GEN DE",
+    vY:"BRG-5 VIB-Y SHAFT REL GEN DE",
+    temps:[
+      { label:"T METAL",   key:"T MTL RADIAL BRG GEN DE" },
+      { label:"T GEN NDE", key:"T MTL RADIAL BRG GEN NDE" }
+    ]
+  },
+  {
+    id:"BRG7", label:"BRG-7", sub:"MKD51", sec:"GEN NDE",
+    below:false, axFrac:0.92,
+    dp:[ 2.52, SY_TOP, 0],
+    mk:["BRG7","BEARING7","BRG-7","MKD51"],
+    vX:"BRG-5 VIB-X SHAFT REL GEN NDE",
+    vY:"BRG-5 VIB-Y SHAFT REL GEN NDE",
+    temps:[
+      { label:"T METAL",   key:"T METAL RADIAL BRG-6" }
+    ]
+  }
+];
 
 const BEARINGS = [
   {
