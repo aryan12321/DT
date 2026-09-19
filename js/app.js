@@ -9,7 +9,7 @@ import { MeshoptDecoder } from "https://cdn.jsdelivr.net/npm/three@0.165.0/examp
    + 1 machine panel (thrust/expansion) fixed top-left
    ============================================================ */
 
-const MODEL_URL  = "./turbine_nw(1).glb";
+const MODEL_URL  = "./turbine.glb";
 const SHEETS_CSV = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTGvHDpe6m7ycqjlbRf7FcWxogdy8gD0Km0dgfRLu_l_iSgOs5l0Emu8tGIICr5N8amuJsTLN4xPgm1/pub?gid=2032255384&single=true&output=csv";
 const REFRESH_MS = 10000;
 
