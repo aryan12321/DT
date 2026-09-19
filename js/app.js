@@ -28,7 +28,7 @@ const TW=80, TA=90;    // temp warn/alert °C
 const BEARINGS = [
   {
     id:"BRG1", label:"BRG-1", sub:"MAD10", sec:"HPT",
-    below:false, axFrac:0.05,
+    below:false, axFrac:0.04,
     dp:[-2.8,1.8,0],
     mk:["BRG1","BEARING1","BRG-1","MAD10"],
     vX:"BRG 1 VIB-X SHAFT REL",
@@ -41,7 +41,7 @@ const BEARINGS = [
   },
   {
     id:"BRG2", label:"BRG-2", sub:"MAD21", sec:"HPT/IPT",
-    below:true, axFrac:0.20,
+    below:true, axFrac:0.18,
     dp:[-1.9,0.9,0],
     mk:["BRG2","BEARING2","BRG-2","MAD21"],
     vX:"BRG-2 VIB-X SHAFT REL",
@@ -53,7 +53,7 @@ const BEARINGS = [
   },
   {
     id:"BRG3", label:"BRG-3", sub:"MAC10/MAD31", sec:"IPT",
-    below:false, axFrac:0.35,
+    below:false, axFrac:0.32,
     dp:[-0.8,1.8,0],
     mk:["BRG3","BEARING3","BRG-3","MAC10","MAD31"],
     vX:"BRG-3 VIB-X SHAFT REL",
@@ -66,7 +66,7 @@ const BEARINGS = [
   },
   {
     id:"BRG4", label:"BRG-4", sub:"MAC20/MAD41", sec:"LPT",
-    below:true, axFrac:0.50,
+    below:true, axFrac:0.47,
     dp:[0.3,0.9,0],
     mk:["BRG4","BEARING4","BRG-4","MAC20","MAD41"],
     vX:"BRG-4 VIB -X SHAFT REL",
@@ -79,8 +79,8 @@ const BEARINGS = [
   },
   {
     id:"BRG5", label:"BRG-5", sub:"MKD11", sec:"LPT-2",
-    below:false, axFrac:0.63,
-    dp:[1.3,1.8,0],
+    below:false, axFrac:0.65,
+    dp:[1.5,1.8,0],
     mk:["BRG5","BEARING5","BRG-5","MKD11"],
     vX:"",
     vY:"",
@@ -91,8 +91,8 @@ const BEARINGS = [
   },
   {
     id:"BRG6", label:"BRG-6", sub:"MKD21", sec:"GEN DE",
-    below:true, axFrac:0.78,
-    dp:[2.1,0.9,0],
+    below:true, axFrac:0.80,
+    dp:[2.4,0.9,0],
     mk:["BRG6","BEARING6","BRG-6","MKD21"],
     vX:"BRG-5 VIB-X SHAFT REL GEN DE",
     vY:"BRG-5 VIB-Y SHAFT REL GEN DE",
@@ -103,8 +103,8 @@ const BEARINGS = [
   },
   {
     id:"BRG7", label:"BRG-7", sub:"MKD51", sec:"GEN NDE",
-    below:false, axFrac:0.93,
-    dp:[2.9,1.8,0],
+    below:false, axFrac:0.95,
+    dp:[3.1,1.8,0],
     mk:["BRG7","BEARING7","BRG-7","MKD51"],
     vX:"BRG-5 VIB-X SHAFT REL GEN NDE",
     vY:"BRG-5 VIB-Y SHAFT REL GEN NDE",
@@ -292,6 +292,8 @@ function initTags(){
     const el=document.createElement("div");
     el.className="tag"+(b.below?" below":"");
     el.id="tg_"+b.id;
+    el.style.transformOrigin="top left";
+    el.style.scale="0.78";
     el.innerHTML=buildTagHTML(b);
     ll.appendChild(el);
     tels[b.id]=el;
@@ -477,7 +479,7 @@ function anchorTagsToMeshes(){
   if(!model) return;
   const invW=new THREE.Matrix4().copy(model.matrixWorld).invert();
 
-  /* Build tight model-local bounding box from geometry */
+  /* Build tight model-local bounding box from all geometry */
   const localBox=new THREE.Box3();
   model.traverse(c=>{
     if(!c.isMesh) return;
@@ -491,39 +493,29 @@ function anchorTagsToMeshes(){
   const lbSz =localBox.getSize(new THREE.Vector3());
   const lbCtr=localBox.getCenter(new THREE.Vector3());
 
-  /* Shaft surface Y: just above the mid-height of the model
-     (bearings sit on the shaft which runs through the middle) */
-  const shaftY = lbCtr.y;                   // shaft centreline
-  const surfAbove = shaftY + lbSz.y * 0.18; // surface above shaft
-  const surfBelow = shaftY - lbSz.y * 0.18; // surface below shaft
+  /* Auto-detect shaft axis = longest bounding box dimension (X or Z).
+     Y is always vertical (above/below the shaft). */
+  const shaftAxis = lbSz.x >= lbSz.z ? "x" : "z";
+  const shaftLen  = shaftAxis === "x" ? lbSz.x : lbSz.z;
+  const shaftMin  = shaftAxis === "x" ? localBox.min.x : localBox.min.z;
+  console.log(`Shaft axis=${shaftAxis} len=${shaftLen.toFixed(2)} bbox x=${lbSz.x.toFixed(2)} y=${lbSz.y.toFixed(2)} z=${lbSz.z.toFixed(2)}`);
 
+  /* Y offsets: above/below shaft at 30% of model height for clear separation */
+  const shaftY    = lbCtr.y;
+  const surfAbove = shaftY + lbSz.y * 0.30;
+  const surfBelow = shaftY - lbSz.y * 0.05;
+
+  /* Spread bearings along detected shaft axis using axFrac.
+     Non-shaft horizontal axis stays at model centre (z or x). */
   BEARINGS.forEach(b=>{
-    /* 1 — try mesh name match */
-    let found=null;
-    model.traverse(c=>{
-      if(!c.isMesh||found) return;
-      const n=nname(c.name);
-      if(b.mk.some(k=>n.includes(nname(k)))) found=c;
-    });
-
-    if(found){
-      /* Place anchor at bearing ring surface in model-local space */
-      const box=new THREE.Box3().setFromObject(found);
-      const centre=box.getCenter(new THREE.Vector3());
-      /* Use X,Z of mesh centre; Y = top or bottom surface of bearing */
-      const wp=centre.clone();
-      wp.y = b.below ? box.min.y : box.max.y;
-      wp.applyMatrix4(invW);
-      wpos[b.id].copy(wp);
-      console.log(`✓ ${b.id} → "${found.name}"`, wpos[b.id]);
+    const along = shaftMin + shaftLen * b.axFrac;
+    const y     = b.below ? surfBelow : surfAbove;
+    if(shaftAxis === "x"){
+      wpos[b.id].set(along, y, lbCtr.z);
     } else {
-      /* 2 — proportional fallback along shaft */
-      const x = localBox.min.x + lbSz.x * b.axFrac;
-      const y = b.below ? surfBelow : surfAbove;
-      const z = lbCtr.z;
-      wpos[b.id].set(x,y,z);
-      console.warn(`⚠ ${b.id} fallback axFrac=${b.axFrac} — check MESH names`);
+      wpos[b.id].set(lbCtr.x, y, along);
     }
+    console.log(`${b.id} → ${shaftAxis}=${along.toFixed(3)} y=${y.toFixed(3)}`);
   });
 }
 
@@ -547,7 +539,8 @@ function loadModel(){
         normalizeModel(model);
         scene.add(model);
         anchorTagsToMeshes();
-        loadSavedPositions();
+        // loadSavedPositions() disabled — positions computed from model bounding box.
+        // Re-enable only after using Edit Mode to manually place tags, then Save.
         colorMeshes();
 
         hint.style.display="none";
