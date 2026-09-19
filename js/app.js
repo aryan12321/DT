@@ -1,7 +1,6 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.165.0/build/three.module.js";
 import { GLTFLoader } from "https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/loaders/GLTFLoader.js";
-import { KTX2Loader } from "https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/loaders/KTX2Loader.js";
-import { MeshoptDecoder } from "https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/libs/meshopt_decoder.module.js";
+import { DRACOLoader } from "https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/loaders/DRACOLoader.js";
 
 /* ============================================================
    TURBINE DIGITAL TWIN  v6
@@ -25,12 +24,31 @@ const TW=80, TA=90;    // temp warn/alert °C
    below: alternates to avoid overlap on long shaft
    axFrac: 0-1 fallback position along turbine X axis
    ============================================================ */
+/*
+  Model facts (from GLB accessor bounds, post-normalizeModel):
+    Raw bounds:  X[-1, +1]  Y[-0.119, +0.122]  Z[-0.141, +0.141]
+    normalizeModel scales by 6/2 = 3 and lifts base to Y=0
+    → Normalized: X[-3, +3]  Y[0, ~0.72]  Z[-0.42, +0.42]
+    Shaft centreline Y ≈ 0.36
+    Tag anchor above shaft: Y = 0.72  (top surface)
+    Tag anchor below shaft: Y = 0.00  (bottom surface / base)
+
+  7 bearings equally spaced along X[-3, +3] = 6 units
+    Spacing: 6/6 = 1.0 unit per gap
+    Positions: -2.8, -1.8, -0.8, +0.2, +1.2, +2.0, +2.8
+    (HPT left → GEN NDE right, matching physical layout)
+
+  Alternating above/below: 1,3,5,7 above  |  2,4,6 below
+*/
+const SY_TOP  =  0.80;   // Y anchor above shaft (tag floats up from here)
+const SY_BOT  =  0.00;   // Y anchor below shaft (tag hangs down from here)
+
 const BEARINGS = [
   {
     id:"BRG1", label:"BRG-1", sub:"MAD10", sec:"HPT",
     below:false, axFrac:0.05,
-    dp:[-2.8,1.8,0],
-    mk:["BRG1","BEARING1","BRG-1","MAD10"],
+    dp:[-2.8, SY_TOP, 0],
+    mk:["BRG1","BEARING1","BRG-1","MAD10","GEOMETRY"],
     vX:"BRG 1 VIB-X SHAFT REL",
     vY:"BRG 1 VIB-Y SHAFT REL",
     temps:[
@@ -42,7 +60,7 @@ const BEARINGS = [
   {
     id:"BRG2", label:"BRG-2", sub:"MAD21", sec:"HPT/IPT",
     below:true, axFrac:0.20,
-    dp:[-1.9,0.9,0],
+    dp:[-1.8, SY_BOT, 0],
     mk:["BRG2","BEARING2","BRG-2","MAD21"],
     vX:"BRG-2 VIB-X SHAFT REL",
     vY:"BRG-2 VIB-Y SHAFT REL",
@@ -53,8 +71,8 @@ const BEARINGS = [
   },
   {
     id:"BRG3", label:"BRG-3", sub:"MAC10/MAD31", sec:"IPT",
-    below:false, axFrac:0.35,
-    dp:[-0.8,1.8,0],
+    below:false, axFrac:0.36,
+    dp:[-0.8, SY_TOP, 0],
     mk:["BRG3","BEARING3","BRG-3","MAC10","MAD31"],
     vX:"BRG-3 VIB-X SHAFT REL",
     vY:"BRG-3 VIB-Y SHAFT REL",
@@ -67,7 +85,7 @@ const BEARINGS = [
   {
     id:"BRG4", label:"BRG-4", sub:"MAC20/MAD41", sec:"LPT",
     below:true, axFrac:0.50,
-    dp:[0.3,0.9,0],
+    dp:[ 0.2, SY_BOT, 0],
     mk:["BRG4","BEARING4","BRG-4","MAC20","MAD41"],
     vX:"BRG-4 VIB -X SHAFT REL",
     vY:"BRG-4 VIB -Y SHAFT REL",
@@ -79,8 +97,8 @@ const BEARINGS = [
   },
   {
     id:"BRG5", label:"BRG-5", sub:"MKD11", sec:"LPT-2",
-    below:false, axFrac:0.63,
-    dp:[1.3,1.8,0],
+    below:false, axFrac:0.64,
+    dp:[ 1.2, SY_TOP, 0],
     mk:["BRG5","BEARING5","BRG-5","MKD11"],
     vX:"",
     vY:"",
@@ -91,8 +109,8 @@ const BEARINGS = [
   },
   {
     id:"BRG6", label:"BRG-6", sub:"MKD21", sec:"GEN DE",
-    below:true, axFrac:0.78,
-    dp:[2.1,0.9,0],
+    below:true, axFrac:0.79,
+    dp:[ 2.0, SY_BOT, 0],
     mk:["BRG6","BEARING6","BRG-6","MKD21"],
     vX:"BRG-5 VIB-X SHAFT REL GEN DE",
     vY:"BRG-5 VIB-Y SHAFT REL GEN DE",
@@ -104,7 +122,7 @@ const BEARINGS = [
   {
     id:"BRG7", label:"BRG-7", sub:"MKD51", sec:"GEN NDE",
     below:false, axFrac:0.93,
-    dp:[2.9,1.8,0],
+    dp:[ 2.8, SY_TOP, 0],
     mk:["BRG7","BEARING7","BRG-7","MKD51"],
     vX:"BRG-5 VIB-X SHAFT REL GEN NDE",
     vY:"BRG-5 VIB-Y SHAFT REL GEN NDE",
@@ -436,23 +454,10 @@ function updateAllPanels(){
 /* ============================================================
    GLB — LOAD + NORMALIZE
    ============================================================ */
+const dracoLoader=new DRACOLoader();
+dracoLoader.setDecoderPath("./draco/");
 const loader=new GLTFLoader();
-
-/* ============================================================
-   COMPRESSED GLB SUPPORT
-   Supports:
-   - EXT_meshopt_compression
-   - KHR_texture_basisu / KTX2 textures
-
-   Required for the compressed turbine_nw(1).glb.
-   ============================================================ */
-loader.setMeshoptDecoder(MeshoptDecoder);
-
-const ktx2Loader = new KTX2Loader()
-  .setTranscoderPath("https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/libs/basis/");
-
-ktx2Loader.detectSupport(renderer);
-loader.setKTX2Loader(ktx2Loader);
+loader.setDRACOLoader(dracoLoader);
 
 function normalizeModel(root){
   const box=new THREE.Box3().setFromObject(root);
@@ -830,7 +835,7 @@ document.getElementById("bWire").onclick=e=>{
    SAVE / LOAD TAG POSITIONS
    ============================================================ */
 const TAG_KEY="turbine_tag_v3", TAG_URL="./tag-positions.json";
-function buildSaveObj(){ const o={_version:3}; BEARINGS.forEach(b=>{ if(wpos[b.id]) o[b.id]={x:wpos[b.id].x,y:wpos[b.id].y,z:wpos[b.id].z}; }); return o; }
+function buildSaveObj(){ const o={_version:4}; BEARINGS.forEach(b=>{ if(wpos[b.id]) o[b.id]={x:wpos[b.id].x,y:wpos[b.id].y,z:wpos[b.id].z}; }); return o; }
 function applyPositions(obj){
   if(!obj||typeof obj!=="object") return false; let ok=false;
   Object.keys(obj).forEach(id=>{ if(id==="_version"||!wpos[id]||!obj[id]) return; const x=+obj[id].x,y=+obj[id].y,z=+(obj[id].z??0); if(Number.isFinite(x)&&Number.isFinite(y)){wpos[id].set(x,y,z);ok=true;} });
@@ -838,8 +843,14 @@ function applyPositions(obj){
 }
 function savePosLocal(){ try{localStorage.setItem(TAG_KEY,JSON.stringify(buildSaveObj()));}catch(_){} }
 function loadSavedPositions(){
-  try{ const loc=JSON.parse(localStorage.getItem(TAG_KEY)||"null"); if(loc&&loc._version===3&&applyPositions(loc)) return; }catch(_){}
-  fetch(TAG_URL+"?t="+Date.now(),{cache:"no-store"}).then(r=>{ if(!r.ok) throw 0; return r.json(); }).then(applyPositions).catch(()=>{});
+  try{
+    const loc=JSON.parse(localStorage.getItem(TAG_KEY)||"null");
+    if(loc&&loc._version>=4&&applyPositions(loc)) return;
+  }catch(_){}
+  fetch(TAG_URL+"?t="+Date.now(),{cache:"no-store"})
+    .then(r=>{ if(!r.ok) throw 0; return r.json(); })
+    .then(obj=>{ if(obj&&obj._version>=4) applyPositions(obj); })
+    .catch(()=>{});
 }
 document.getElementById("bSave").onclick=()=>{
   savePosLocal();
