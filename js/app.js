@@ -1,5 +1,7 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.165.0/build/three.module.js";
 import { GLTFLoader } from "https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/loaders/GLTFLoader.js";
+import { KTX2Loader } from "https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/loaders/KTX2Loader.js";
+import { MeshoptDecoder } from "https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/libs/meshopt_decoder.module.js";
 
 /* ============================================================
    TURBINE DIGITAL TWIN  v6
@@ -435,6 +437,22 @@ function updateAllPanels(){
    GLB — LOAD + NORMALIZE
    ============================================================ */
 const loader=new GLTFLoader();
+
+/* ============================================================
+   COMPRESSED GLB SUPPORT
+   Supports:
+   - EXT_meshopt_compression
+   - KHR_texture_basisu / KTX2 textures
+
+   Required for the compressed turbine_nw(1).glb.
+   ============================================================ */
+loader.setMeshoptDecoder(MeshoptDecoder);
+
+const ktx2Loader = new KTX2Loader()
+  .setTranscoderPath("https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/libs/basis/");
+
+ktx2Loader.detectSupport(renderer);
+loader.setKTX2Loader(ktx2Loader);
 
 function normalizeModel(root){
   const box=new THREE.Box3().setFromObject(root);
