@@ -88,16 +88,17 @@ function parseResponse(json) {
 // ── LAUNCH BROWSER ───────────────────────────────────────────────────────────
 async function launchBrowser() {
   console.log("[browser] Launching Puppeteer...");
-  browser = await puppeteer.launch({
-    headless: "new",
-    args: [
-      "--no-sandbox",
-      "--disable-setuid-sandbox",
-      "--disable-dev-shm-usage",   // required on Render/Docker
-      "--disable-gpu",
-      "--no-zygote",
-    ],
-  });
+ browser = await puppeteer.launch({
+  headless: "new",
+  executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
+  args: [
+    "--no-sandbox",
+    "--disable-setuid-sandbox",
+    "--disable-dev-shm-usage",
+    "--disable-gpu",
+    "--no-zygote",
+  ],
+});
   page = await browser.newPage();
 
   // Intercept DiffForData responses
