@@ -368,16 +368,43 @@ function getSensorFrom(src,name){
   return null;
 }
 
+/* ============================================================
+   REPLACE the entire fetchData() function in app.js with this.
+   Also DELETE: parseCSV(), cleanKey(), sensorKey(), parseValue()
+   Also DELETE: const SHEETS_CSV = "..."
+   Nothing else in app.js needs to change.
+   ============================================================ */
+
+const REFRESH_MS = 10000;
+
 async function fetchData() {
   try {
-    const r = await fetch(DATA_URL + "?t=" + Date.now(), { cache: "no-store" });
-    if (!r.ok) throw new Error("HTTP " + r.status);
-    data = await r.json();                          // already { "SENSOR NAME": value }
+    // Check if extension bridge is available
+    if (typeof window.__getPIVisionData !== "function") {
+      setStatus("⚠ PIVision Bridge extension not detected", true);
+      return;
+    }
+
+    const result = await window.__getPIVisionData();
+
+    if (!result || !result.data) {
+      setStatus("⏳ Waiting for PIVision data… (open PIVision tab)", true);
+      return;
+    }
+
+    // Check data freshness — warn if older than 60 seconds
+    const ageSeconds = Math.round((Date.now() - result._ts) / 1000);
+    if (ageSeconds > 60) {
+      setStatus(`⚠ Data is ${ageSeconds}s old — is PIVision tab open?`, true);
+    }
+
+    data = result.data;  // { "DESCRIPTION": value, ... }
+
     if (!frozen) { updateAllPanels(); colorMeshes(); }
     document.getElementById("hR").textContent = Math.round(REFRESH_MS / 1000) + "s";
     updateFreezeBar();
-    if (!frozen) {
-      setStatus("LIVE • " + new Date().toLocaleTimeString(), true);
+    if (!frozen && ageSeconds <= 60) {
+      setStatus("LIVE • " + new Date(result._ts).toLocaleTimeString(), true);
       setTimeout(() => setStatus("", false), 1800);
     }
   } catch (err) {
