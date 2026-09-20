@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "PIVision → Digital Twin data bridge",
   "main": "server.js",
+  "type": "commonjs",
   "scripts": {
     "start": "node server.js"
   },
@@ -11,6 +12,6 @@
     "puppeteer": "^21.0.0"
   },
   "engines": {
-    "node": ">=18"
+    "node": "20"
   }
 }
