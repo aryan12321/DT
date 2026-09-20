@@ -10,8 +10,8 @@ import { MeshoptDecoder } from "https://cdn.jsdelivr.net/npm/three@0.165.0/examp
    ============================================================ */
 
 const MODEL_URL  = "./turbine.glb";
-//const SHEETS_CSV = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTGvHDpe6m7ycqjlbRf7FcWxogdy8gD0Km0dgfRLu_l_iSgOs5l0Emu8tGIICr5N8amuJsTLN4xPgm1/pub?gid=2032255384&single=true&output=csv";
-const DATA_URL = "https://pivision-bridge.onrender.com/data";
+//// SHEETS_CSV removed — data comes from PIVision Bridge extension
+// Data source: PIVision Bridge Chrome extension
 const REFRESH_MS = 10000;
 
 const VW=75, VA=100;   // vib warn/alert µm
@@ -367,15 +367,6 @@ function getSensorFrom(src,name){
   }
   return null;
 }
-
-/* ============================================================
-   REPLACE the entire fetchData() function in app.js with this.
-   Also DELETE: parseCSV(), cleanKey(), sensorKey(), parseValue()
-   Also DELETE: const SHEETS_CSV = "..."
-   Nothing else in app.js needs to change.
-   ============================================================ */
-
-const REFRESH_MS = 10000;
 
 async function fetchData() {
   try {
