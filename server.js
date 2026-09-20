@@ -128,40 +128,40 @@ async function loadDisplay() {
 
   await page.goto(CONFIG.url, { waitUntil: "networkidle2", timeout: 60000 });
 
-  // Check if login form is present
-  const loginForm = await page.$("input[name='UserName'], input[type='password'], #loginForm");
+  // Take a screenshot to debug what page we're on
+  const title = await page.title();
+  console.log("[login] Page title:", title);
 
-  if (loginForm) {
-    console.log("[login] Login form detected, entering credentials...");
+  // Always try to fill credentials if fields exist
+  const hasUser = await page.$("input[name='UserName'], #UserName, input[name='username']");
+  const hasPass = await page.$("input[type='password']");
 
-    // Fill username
+  if (hasUser && hasPass) {
+    console.log("[login] Found login fields, entering credentials...");
     await page.evaluate(() => {
-      const u = document.querySelector("input[name='UserName'], input[name='username'], #UserName");
+      const u = document.querySelector("input[name='UserName'], #UserName, input[name='username']");
       if (u) u.value = "";
     });
-    await page.type("input[name='UserName'], input[name='username'], #UserName", CONFIG.username, { delay: 50 });
-
-    // Fill password
+    await page.type("input[name='UserName'], #UserName, input[name='username']", CONFIG.username, { delay: 50 });
     await page.type("input[type='password']", CONFIG.password, { delay: 50 });
-
-    // Submit
     await Promise.all([
       page.waitForNavigation({ waitUntil: "networkidle2", timeout: 60000 }),
-      page.click("input[type='submit'], button[type='submit']"),
+      page.click("input[type='submit'], button[type='submit'], button[type='button']"),
     ]);
-
-    console.log("[login] Submitted. Waiting for display...");
+    console.log("[login] Submitted.");
   } else {
-    console.log("[login] No login form — already authenticated or SSO.");
+    console.log("[login] No login fields found. Page title was:", title);
+    // Dump page content for debugging
+    const bodyText = await page.evaluate(() => document.body?.innerText?.slice(0, 500));
+    console.log("[login] Page preview:", bodyText);
   }
 
-  // Wait for display data to start loading
+  // Wait for DiffForData with longer timeout
+  console.log("[login] Waiting for data...");
   await page.waitForResponse(
     res => res.url().includes("DiffForData") && res.status() === 200,
-    { timeout: 60000 }
-  ).catch(() => console.log("[login] Timeout waiting for DiffForData — display may still be loading."));
-
-  console.log("[login] Display loaded. Data flowing.");
+    { timeout: 90000 }
+  ).catch(e => console.log("[login] DiffForData timeout:", e.message));
 }
 
 // ── SESSION WATCHDOG ─────────────────────────────────────────────────────────
