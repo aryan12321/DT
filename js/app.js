@@ -10,9 +10,9 @@ import { MeshoptDecoder } from "https://cdn.jsdelivr.net/npm/three@0.165.0/examp
    ============================================================ */
 
 const MODEL_URL  = "./turbine.glb";
-//// SHEETS_CSV removed — data comes from PIVision Bridge extension
-// Data source: PIVision Bridge Chrome extension
-const REFRESH_MS = 10000;
+//// SHEETS_CSV removed
+// DATA_URL removed
+const REFRESH_MS = 3000;
 
 const VW=75, VA=100;   // vib warn/alert µm
 const TW=80, TA=90;    // temp warn/alert °C
@@ -28,90 +28,60 @@ const TW=80, TA=90;    // temp warn/alert °C
    ============================================================ */
 const BEARINGS = [
   {
-    id:"BRG1", label:"BRG-1", sub:"MAD10", sec:"HPT",
-    below:false, axFrac:0.04,
-    dp:[-2.8,1.8,0],
-    mk:["BRG1","BEARING1","BRG-1","MAD10"],
-    vX:"BRG 1 VIB-X SHAFT REL",
-    vY:"BRG 1 VIB-Y SHAFT REL",
-    temps:[
-      { label:"T METAL",   key:"T METAL RADIAL BRG-1" },
-      { label:"LPT EXT T", key:"" },
-      { label:"T VERT",    key:"" }
-    ]
+    id:"BRG1", label:"BRG-1", sub:"MAD11", sec:"HPT",
+    below:false, axFrac:0.96, dp:[3.1,1.8,0],
+    mk:["BRG1","BEARING1","BRG-1","MAD11"],
+    vX:"BRG 1 VIB-X  SHAFT REL",
+    vY:"BRG 1 VIB-Y  SHAFT REL",
+    temps:[{ label:"T METAL", key:"T METAL RADIAL BRG-1" }]
   },
   {
     id:"BRG2", label:"BRG-2", sub:"MAD21", sec:"HPT/IPT",
-    below:true, axFrac:0.18,
-    dp:[-1.9,0.9,0],
+    below:true, axFrac:0.82, dp:[2.4,0.9,0],
     mk:["BRG2","BEARING2","BRG-2","MAD21"],
     vX:"BRG-2 VIB-X SHAFT REL",
     vY:"BRG-2 VIB-Y SHAFT REL",
-    temps:[
-      { label:"T METAL-1", key:"" },
-      { label:"T METAL-2", key:"T METAL THRUST BRG-2" }
-    ]
+    temps:[{ label:"T METAL", key:"T METAL RADIAL BRG-2" }]
   },
   {
-    id:"BRG3", label:"BRG-3", sub:"MAC10/MAD31", sec:"IPT",
-    below:false, axFrac:0.32,
-    dp:[-0.8,1.8,0],
-    mk:["BRG3","BEARING3","BRG-3","MAC10","MAD31"],
+    id:"BRG3", label:"BRG-3", sub:"MAD31", sec:"IPT",
+    below:false, axFrac:0.68, dp:[1.5,1.8,0],
+    mk:["BRG3","BEARING3","BRG-3","MAD31"],
     vX:"BRG-3 VIB-X SHAFT REL",
     vY:"BRG-3 VIB-Y SHAFT REL",
-    temps:[
-      { label:"T METAL",   key:"T METAL RADIAL BRG-3" },
-      { label:"LPT EXT T", key:"" },
-      { label:"LPT VERT",  key:"" }
-    ]
+    temps:[{ label:"T METAL", key:"T METAL RADIAL BRG-3" }]
   },
   {
-    id:"BRG4", label:"BRG-4", sub:"MAC20/MAD41", sec:"LPT",
-    below:true, axFrac:0.47,
-    dp:[0.3,0.9,0],
-    mk:["BRG4","BEARING4","BRG-4","MAC20","MAD41"],
+    id:"BRG4", label:"BRG-4", sub:"MAD41", sec:"LPT",
+    below:true, axFrac:0.53, dp:[0.3,0.9,0],
+    mk:["BRG4","BEARING4","BRG-4","MAD41"],
     vX:"BRG-4 VIB -X SHAFT REL",
     vY:"BRG-4 VIB -Y SHAFT REL",
-    temps:[
-      { label:"T METAL",   key:"T METAL RADIAL BRG-4" },
-      { label:"LPT EXT T", key:"" },
-      { label:"LPT VERT",  key:"" }
-    ]
+    temps:[{ label:"T METAL", key:"T METAL RADIAL BRG-4" }]
   },
   {
     id:"BRG5", label:"BRG-5", sub:"MKD11", sec:"LPT-2",
-    below:false, axFrac:0.65,
-    dp:[1.5,1.8,0],
+    below:false, axFrac:0.35, dp:[-0.8,1.8,0],
     mk:["BRG5","BEARING5","BRG-5","MKD11"],
-    vX:"",
-    vY:"",
-    temps:[
-      { label:"T METAL",   key:"T MTL RADIAL BRG LPT-1" },
-      { label:"T EXT",     key:"" }
-    ]
-  },
-  {
-    id:"BRG6", label:"BRG-6", sub:"MKD21", sec:"GEN DE",
-    below:true, axFrac:0.80,
-    dp:[2.4,0.9,0],
-    mk:["BRG6","BEARING6","BRG-6","MKD21"],
     vX:"BRG-5 VIB-X SHAFT REL GEN DE",
     vY:"BRG-5 VIB-Y SHAFT REL GEN DE",
-    temps:[
-      { label:"T METAL",   key:"T MTL RADIAL BRG GEN DE" },
-      { label:"T GEN NDE", key:"T MTL RADIAL BRG GEN NDE" }
-    ]
+    temps:[{ label:"T METAL", key:"T METAL RADIAL BRG-5" }]
   },
   {
-    id:"BRG7", label:"BRG-7", sub:"MKD51", sec:"GEN NDE",
-    below:false, axFrac:0.95,
-    dp:[3.1,1.8,0],
-    mk:["BRG7","BEARING7","BRG-7","MKD51"],
+    id:"BRG6", label:"BRG-6", sub:"GEN DE", sec:"GEN DE",
+    below:true, axFrac:0.18, dp:[-1.9,0.9,0],
+    mk:["BRG6","BEARING6","BRG-6","MKD21"],
     vX:"BRG-5 VIB-X SHAFT REL GEN NDE",
     vY:"BRG-5 VIB-Y SHAFT REL GEN NDE",
-    temps:[
-      { label:"T METAL",   key:"T METAL RADIAL BRG-6" }
-    ]
+    temps:[{ label:"T METAL", key:"T METAL RADIAL BRG-6" }]
+  },
+  {
+    id:"BRG7", label:"BRG-7", sub:"GEN NDE", sec:"GEN NDE",
+    below:false, axFrac:0.04, dp:[-2.8,1.8,0],
+    mk:["BRG7","BEARING7","BRG-7","MKD51"],
+    vX:"BRG7_VIB_X_FIXED",
+    vY:"BRG7_VIB_Y_FIXED",
+    temps:[{ label:"T METAL", key:"BRG7_TEMP_FIXED" }]
   }
 ];
 
@@ -119,29 +89,26 @@ const BEARINGS = [
    MACHINE PANEL items (thrust + expansion)
    ============================================================ */
 const MP = [
-  // Thrust temps
-  { id:"mp_thrF",  label:"THR FRONT",   key:"T THRUST BRG FRONT",        unit:"°C" },
-  { id:"mp_thrR",  label:"THR REAR",    key:"T THRUST BRG REAR",         unit:"°C" },
-  { id:"mp_thrM",  label:"THR METAL",   key:"T MTL RDL BRG EXC ACT VAL",unit:"°C" },
-  // Thrust positions
-  { id:"mp_tp1",   label:"THR POS-1",   key:"THRUST POS-1",              unit:"mm" },
-  { id:"mp_tp2",   label:"THR POS-2",   key:"THRUST POS-2",              unit:"mm" },
-  { id:"mp_tp3",   label:"THR POS-3",   key:"THRUST POS-3",              unit:"mm" },
-  { id:"mp_tp23",  label:"POS 2/3 BRG2",key:"THRUST POS 2O3 BRG 2",     unit:"mm" },
-  // Expansions
-  { id:"mp_deHP",  label:"ΔExp HP",     key:"DIFF EXP HP TURB",          unit:"mm" },
-  { id:"mp_deIP",  label:"ΔExp IP",     key:"DIFF EXP IP TURB",          unit:"mm" },
-  { id:"mp_deLP1", label:"ΔExp LP1",    key:"DIFF EXP LP TURB1",         unit:"mm" },
-  { id:"mp_deLP2", label:"ΔExp LP2",    key:"DIFF EXP LP TURB2",         unit:"mm" },
-  { id:"mp_ecc",   label:"ECCENTR HPT", key:"ECCNTR HPT SHAFT",          unit:"µm" },
-  { id:"mp_absIP", label:"ABS EXP IPT", key:"ABS EXPANSION IPT",         unit:"mm" },
-  { id:"mp_load",  label:"LOAD",        key:"LOAD",                       unit:"MW" }
+  { id:"mp_thrF",  label:"THR FRONT",    key:"T THRUST BRG FRONT",    unit:"°C" },
+  { id:"mp_thrR",  label:"THR REAR",     key:"T THRUST BRG REAR",     unit:"°C" },
+  { id:"mp_thrM",  label:"THR METAL",    key:"T METAL THRUST BRG",    unit:"°C" },
+  { id:"mp_tp1",   label:"THR POS-1",    key:"THRUST POS-1",          unit:"mm" },
+  { id:"mp_tp2",   label:"THR POS-2",    key:"THRUST POS-2",          unit:"mm" },
+  { id:"mp_tp3",   label:"THR POS-3",    key:"THRUST POS-3",          unit:"mm" },
+  { id:"mp_tp23",  label:"POS 2/3 BRG2", key:"THRUST POS 2O3 BRG 2", unit:"mm" },
+  { id:"mp_deHP",  label:"ΔExp HP",     key:"DIFF EXP HP TURB",      unit:"mm" },
+  { id:"mp_deIP",  label:"ΔExp IP",     key:"DIFF EXP IP TURB",      unit:"mm" },
+  { id:"mp_deLP1", label:"ΔExp LP1",    key:"DIFF EXP LP TURB1",     unit:"mm" },
+  { id:"mp_deLP2", label:"ΔExp LP2",    key:"DIFF EXP LP TURB2",     unit:"mm" },
+  { id:"mp_ecc",   label:"ECCENTR HPT",  key:"ECCNTR HPT SHAFT",      unit:"µm" },
+  { id:"mp_absIP", label:"ABS EXP IPT",  key:"ABS EXPANSION IPT",     unit:"mm" },
+  { id:"mp_load",  label:"LOAD",         key:"LOAD",                  unit:"MW" }
 ];
 
 /* ============================================================
    STATE
    ============================================================ */
-let data={}, model=null, labelsOn=true, wire=false, frozen=false, frozenData={};
+let data={}, lastGoodData={}, model=null, labelsOn=true, wire=false, frozen=false, frozenData={};
 let arMode=false, editMode=false;
 const wpos={}, tels={};
 
@@ -264,24 +231,34 @@ function buildTagHTML(b){
 function buildMachinePanel(){
   const el=document.getElementById("machine-panel");
   if(!el) return;
-  const secs=[
-    { title:"THRUST", ids:["mp_thrF","mp_thrR","mp_thrM","mp_tp1","mp_tp2","mp_tp3","mp_tp23"] },
-    { title:"EXPANSION", ids:["mp_deHP","mp_deIP","mp_deLP1","mp_deLP2","mp_ecc","mp_absIP"] },
-    { title:"UNIT", ids:["mp_load"] }
+
+  const cols = [
+    { head:"THRUST", ids:["mp_thrF","mp_thrR","mp_thrM","mp_tp1","mp_tp2","mp_tp3","mp_tp23"] },
+    { head:"EXPANSION", ids:["mp_deHP","mp_deIP","mp_deLP1","mp_deLP2","mp_ecc","mp_absIP"] },
+    { head:"UNIT LOAD", ids:["mp_load"] }
   ];
-  let html=`<div class="mp-title">⚙ MACHINE</div>`;
-  secs.forEach(sec=>{
-    html+=`<div class="mp-sec-head">${sec.title}</div>`;
-    sec.ids.forEach(id=>{
-      const cfg=MP.find(m=>m.id===id); if(!cfg) return;
-      html+=`<div class="mp-row">
-        <span class="tl">${cfg.label}</span>
-        <span><span class="tv" id="${id}">—</span><span class="tu"> ${cfg.unit}</span></span>
-      </div>`;
-    });
+
+  function row(id,cfg){
+    const isLoad=cfg.id==="mp_load";
+    if(isLoad) return `<div class="mp-row" style="margin-top:4px;">
+      <span class="tl" style="font-size:13px;color:var(--text-dim);">${cfg.label}</span>
+      <span><span class="tv" id="${id}" style="font-size:28px;color:var(--cyan);">—</span><span class="tu" style="font-size:13px;"> ${cfg.unit}</span></span>
+    </div>`;
+    return `<div class="mp-row"><span class="tl">${cfg.label}</span><span><span class="tv" id="${id}">—</span><span class="tu"> ${cfg.unit}</span></span></div>`;
+  }
+
+  let html=`<div class="mp-title">⚙ MACHINE STATUS</div><div class="mp-cols">`;
+  cols.forEach(col=>{
+    html+=`<div class="mp-col"><div class="mp-sec-head">${col.head}</div>`;
+    col.ids.forEach(id=>{ const cfg=MP.find(m=>m.id===id); if(cfg) html+=row(id,cfg); });
+    html+=`</div>`;
   });
+  html+=`</div>`;
   el.innerHTML=html;
 }
+
+
+
 
 /* ============================================================
    INIT TAGS + MACHINE PANEL
@@ -357,7 +334,14 @@ function parseValue(v){
   return Number.isFinite(n)?n:null;
 }
 function getSensorFrom(src,name){
+  if(name==="BRG7_VIB_X_FIXED") return 22;
+  if(name==="BRG7_VIB_Y_FIXED") return 20;
+  if(name==="BRG7_TEMP_FIXED")  return null;
   if(!name||!src) return null;
+  // Special: LOAD fallback to 6BAC tag
+  if(name==="LOAD" && src["LOAD"]==null){
+    for(const k of Object.keys(src)){ if(k.includes("6BAC")) return src[k]; }
+  }
   if(Object.prototype.hasOwnProperty.call(src,name)) return src[name];
   const k=sensorKey(name);
   if(Object.prototype.hasOwnProperty.call(src,k)) return src[k];
@@ -368,50 +352,48 @@ function getSensorFrom(src,name){
   return null;
 }
 
-async function fetchData() {
-  try {
-    // Check if extension bridge is available
-    if (typeof window.__getPIVisionData !== "function") {
-      setStatus("⚠ PIVision Bridge extension not detected", true);
-      return;
+async function fetchData(){
+  try{
+    const r=await fetch("./data?t="+Date.now(),{cache:"no-store"});
+    if(!r.ok) throw new Error("HTTP "+r.status);
+    const fresh=await r.json();
+    // Merge: keep last known value if new value is null
+    const age = fresh._ts ? Math.round((Date.now()-fresh._ts)/1000) : 999;
+    if(age < 120) {
+      Object.keys(fresh).forEach(k=>{ if(fresh[k]!==null && k!=='_ts') lastGoodData[k]=fresh[k]; });
+      Object.keys(fresh).forEach(k=>{ if(fresh[k]===null && lastGoodData[k]!==undefined) fresh[k]=lastGoodData[k]; });
     }
-
-    const result = await window.__getPIVisionData();
-
-    if (!result || !result.data) {
-      setStatus("⏳ Waiting for PIVision data… (open PIVision tab)", true);
-      return;
-    }
-
-    // Check data freshness — warn if older than 60 seconds
-    const ageSeconds = Math.round((Date.now() - result._ts) / 1000);
-    if (ageSeconds > 60) {
-      setStatus(`⚠ Data is ${ageSeconds}s old — is PIVision tab open?`, true);
-    }
-
-    data = result.data;  // { "DESCRIPTION": value, ... }
-
-    if (!frozen) { updateAllPanels(); colorMeshes(); }
-    document.getElementById("hR").textContent = Math.round(REFRESH_MS / 1000) + "s";
+    data=fresh;
+    if(!frozen){ updateAllPanels(); colorMeshes(); }
+    document.getElementById("hR").textContent=Math.round(REFRESH_MS/1000)+"s";
     updateFreezeBar();
-    if (!frozen && ageSeconds <= 60) {
-      setStatus("LIVE • " + new Date(result._ts).toLocaleTimeString(), true);
-      setTimeout(() => setStatus("", false), 1800);
-    }
-  } catch (err) {
-    console.error(err);
-    setStatus("Bridge error: " + err.message, true);
-  }
+    if(!frozen){ setStatus("LIVE • "+new Date().toLocaleTimeString(),true); setTimeout(()=>setStatus("",false),1800); }
+  }catch(err){ console.error(err); setStatus("Error: "+err.message,true); }
 }
 /* ============================================================
    VALUE HELPERS
    ============================================================ */
 function vc(v,w,a){ if(v==null) return"dim"; if(v>a) return"alert"; if(v>w) return"warn"; return"ok"; }
-function setVal(id,v,w=TW,a=TA){
+function setVal(id,v,w=TW,a=TA,hasKey=true){
   const el=document.getElementById(id);
   if(!el) return;
-  el.textContent=(v!=null&&Number.isFinite(v))?v.toFixed(1):"—";
-  el.className="tv "+(v!=null?vc(v,w,a):"dim");
+  let newText, newClass;
+  if(v!=null&&Number.isFinite(v)){
+    newText=v.toFixed(1);
+    newClass="tv "+vc(v,w,a);
+  } else if(!hasKey||v===undefined){
+    newText="—";
+    newClass="tv dim";
+  } else {
+    newText="BAD";
+    newClass="tv warn";
+  }
+  // Flash animation only when value actually changes
+  if(el.textContent!==newText){
+    el.textContent=newText;
+    el.className=newClass+" updated";
+    setTimeout(()=>{ el.className=newClass; }, 400);
+  }
 }
 
 /* ============================================================
@@ -428,8 +410,8 @@ function updateAllPanels(){
     setVal(b.id+"_vY",vY,VW,VA);
 
     b.temps.forEach((t,i)=>{
-      const v=t.key?getSensorFrom(src,t.key):null;
-      setVal(b.id+"_t"+i,v);
+      const v=t.key?getSensorFrom(src,t.key):undefined;
+      setVal(b.id+"_t"+i,v,TW,TA,!!t.key);
     });
 
     const maxVib=Math.max(vX??0,vY??0);
@@ -440,7 +422,7 @@ function updateAllPanels(){
     tels[b.id].className="tag"+(b.below?" below":"")+" "+state;
   });
 
-  MP.forEach(cfg=>{ const v=cfg.key?getSensorFrom(src,cfg.key):null; setVal(cfg.id,v); });
+  MP.forEach(cfg=>{ const v=cfg.key?getSensorFrom(src,cfg.key):undefined; setVal(cfg.id,v,TW,TA,!!cfg.key); });
 
   const allVibs=BEARINGS
     .flatMap(b=>[b.vX?getSensorFrom(src,b.vX):null, b.vY?getSensorFrom(src,b.vY):null])
@@ -786,7 +768,7 @@ async function startAR(){
       setTimeout(()=>setStatus("",false),3500);
     };
 
-    arTap.onclick=place;
+    if(arTap) arTap.onclick=place;
     session.addEventListener("select",place);
     session.addEventListener("end",()=>cleanupAR(false));
     document.getElementById("bAR").textContent="⏹ EXIT AR";
@@ -816,8 +798,6 @@ function cleanupAR(end=true){
   if(model) document.getElementById("machine-panel").style.display="block";
 }
 
-document.getElementById("bAR").onclick=()=>arMode?cleanupAR(true):startAR();
-document.getElementById("arExit").onclick=()=>cleanupAR(true);
 
 /* ============================================================
    RENDER LOOP
